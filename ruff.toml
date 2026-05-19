@@ -1,0 +1,21 @@
+target-version = "py313"
+
+
+line-length = 88
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes (неиспользуемые импорты и переменные)
+    "I",   # isort (порядок импортов)
+    "DJ",  # django-specific правила
+]
+
+ignore = ["E501"]
+
+[lint.per-file-ignores]
+"__init__.py" = ["E402", "F401"]
+"*/migrations/*.py" = ["E501"]
+"settings/*.py" = ["F405"]
+
+[lint.isort]
