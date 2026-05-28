@@ -6,12 +6,10 @@ from accounts.models import User
 
 class SignUpForm(UserCreationForm):
     """
-    Форма регистрации пользователя
+    User register form
     """
 
-    email = forms.EmailField(
-        max_length=256, help_text="Обязательное поле. Введите email."
-    )
+    email = forms.EmailField(max_length=256, help_text="Required field. Enter email.")
 
     class Meta:
         model = User
@@ -19,5 +17,5 @@ class SignUpForm(UserCreationForm):
 
 
 class LoginForm(AuthenticationForm):
-    username = forms.CharField(label="Имя пользователя")
-    password = forms.CharField(label="Пароль", widget=forms.PasswordInput)
+    username = forms.CharField(label="Username")
+    password = forms.CharField(label="Password", widget=forms.PasswordInput)

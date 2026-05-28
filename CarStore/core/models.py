@@ -6,7 +6,7 @@ from django.db import models
 # Create your models here.
 class BaseModel(models.Model):
     """
-    Абстрактный класс для ORM моделей
+    Abstract class for ORM models
 
     :id:         UUID
     :created_at: datetime

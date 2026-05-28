@@ -6,18 +6,17 @@ from django.db import models
 
 class User(AbstractUser):
     """
-    Класс сущностей пользователей,
-    содержет в себе общую для каждого
-    пользоваетеля информацию
+    A user entity class,contains
+    information common to each user
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     ROLES = (
-        ("buyer", "Покупатель"),
-        ("supplier", "Поставщик"),
-        ("dealership", "Автосалон"),
-        ("admin", "Администратор"),
+        ("buyer", "Buyer"),
+        ("supplier", "Supplier"),
+        ("dealership", "Dealership"),
+        ("admin", "Administrator"),
     )
 
     role = models.CharField(
