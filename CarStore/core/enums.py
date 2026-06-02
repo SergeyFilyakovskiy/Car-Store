@@ -32,3 +32,11 @@ class TransmissionTypeEnum(StrEnum):
     CVT = "CVT"
     iMT = "iMT"
     AMT = "AMT"
+
+
+class StatusEnum(StrEnum):
+    PENDING = "PENDING"
+    MATCHED = "MATCHED"
+    COMPLETED = "COMPLETED"
+    EXPIRED = "EXPIRED"
+    CANCELLED = "CANCELLED"
