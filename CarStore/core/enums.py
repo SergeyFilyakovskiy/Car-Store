@@ -1,42 +1,42 @@
-from enum import StrEnum
+from django.db import models
 
 
-class BodyTypesEnum(StrEnum):
-    MICRO = "micro"
-    HATCHBACK = "hatchback"
-    CROSSOVER = "crossover"
-    SEDAN = "sedan"
-    COUPE = "coupe"
-    OFFROAD = "offroad"
-    SPORT = "sport"
-    VAN = "van"
+class BodyTypesEnum(models.TextChoices):
+    MICRO = "micro", "Micro"
+    HATCHBACK = "hatchback", "Hatchback"
+    CROSSOVER = "crossover", "Crossover"
+    SEDAN = "sedan", "Sedan"
+    COUPE = "coupe", "Coupe"
+    OFFROAD = "offroad", "Offroad"
+    SPORT = "sport", "Sport"
+    VAN = "van", "Van"
 
 
-class FuelTypeEnum(StrEnum):
-    PETROL = "petrol"
-    DIESEL = "diesel"
-    HYBRID = "hybrid"
-    ELECTRIC = "electric"
+class FuelTypeEnum(models.TextChoices):
+    PETROL = "petrol", "Petrol"
+    DIESEL = "diesel", "Diesel"
+    HYBRID = "hybrid", "Hybrid"
+    ELECTRIC = "electric", "Electric"
 
 
-class DriveTypeEnum(StrEnum):
-    FWD = "FWD"
-    RWD = "RWD"
-    AWD = "AWD"
-    _4WD = "4WD"
+class DriveTypeEnum(models.TextChoices):
+    FWD = "FWD", "FWD"
+    RWD = "RWD", "RWD"
+    AWD = "AWD", "AWD"
+    FOUR_WD = "4WD", "4WD"
 
 
-class TransmissionTypeEnum(StrEnum):
-    MT = "MT"
-    AT = "AT"
-    CVT = "CVT"
-    iMT = "iMT"
-    AMT = "AMT"
+class TransmissionTypeEnum(models.TextChoices):
+    MT = "MT", "MT"
+    AT = "AT", "AT"
+    CVT = "CVT", "CVT"
+    IMT = "iMT", "iMT"
+    AMT = "AMT", "AMT"
 
 
-class StatusEnum(StrEnum):
-    PENDING = "PENDING"
-    MATCHED = "MATCHED"
-    COMPLETED = "COMPLETED"
-    EXPIRED = "EXPIRED"
-    CANCELLED = "CANCELLED"
+class StatusEnum(models.TextChoices):
+    PENDING = "PENDING", "Pending"
+    MATCHED = "MATCHED", "Matched"
+    COMPLETED = "COMPLETED", "Completed"
+    EXPIRED = "EXPIRED", "Expired"
+    CANCELLED = "CANCELLED", "Cancelled"

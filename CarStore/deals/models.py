@@ -1,156 +1,198 @@
 import uuid
 
+from core.enums import StatusEnum
 from core.models import BaseModel
 from django.db import models
 
 
-class DealershipPromo(BaseModel):
-    """Represents a promotional campaign created by a dealership.
+class Offer(BaseModel):
+    """Represents a buyer offer for a specific car model.
 
     Attributes:
-        id: Unique promotion identifier.
-        dealer: Related dealership that owns the promotion.
-        name: Promotion name.
-        description: Promotion description.
-        discount_pct: Discount percentage for eligible cars.
-        start_date: Date when the promotion starts.
-        end_date: Date when the promotion ends.
+        id: Unique offer identifier.
+        buyer: Buyer who created the offer.
+        car_model: Requested car model.
+        max_price: Maximum price the buyer is willing to pay.
+        status: Current offer status.
+        expires_at: Offer expiration timestamp.
     """
 
     id = models.UUIDField(default=uuid.uuid4, primary_key=True)
-    dealer = models.ForeignKey(
-        "dealers.Dealership",
+    buyer = models.ForeignKey(
+        "accounts.Buyer",
         on_delete=models.CASCADE,
-        related_name="promotions",
+        related_name="offers",
+        verbose_name="Buyer",
+    )
+    car_model = models.ForeignKey(
+        "cars.CarModel",
+        on_delete=models.CASCADE,
+        related_name="offers",
+        verbose_name="Car model",
+    )
+    max_price = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="Maximum price",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=StatusEnum.choices,
+        default=StatusEnum.PENDING,
+        verbose_name="Status",
+    )
+    expires_at = models.DateTimeField(verbose_name="Expires at")
+
+    class Meta:  # type: ignore
+        verbose_name = "Offer"
+        verbose_name_plural = "Offers"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["expires_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.buyer} → {self.car_model} ({self.max_price} USD)"
+
+
+class Transaction(BaseModel):
+    """Represents a money movement in the system.
+
+    Attributes:
+        id: Unique transaction identifier.
+        transaction_type: Type of transaction.
+        amount: Transaction amount in USD.
+        buyer: Buyer involved in the transaction, if any.
+        dealership: Dealership involved in the transaction, if any.
+        supplier: Supplier involved in the transaction, if any.
+        car_model: Car model involved in the transaction.
+        offer: Related offer, if any.
+        reason: Explanation for the transaction.
+    """
+
+    class TransactionType(models.TextChoices):
+        PURCHASE = "PURCHASE", "Purchase"
+        SALE = "SALE", "Sale"
+
+    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
+    transaction_type = models.CharField(
+        max_length=20,
+        choices=TransactionType.choices,
+        verbose_name="Transaction type",
+    )
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="Amount",
+    )
+    buyer = models.ForeignKey(
+        "accounts.Buyer",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="transactions",
+        verbose_name="Buyer",
+    )
+    dealership = models.ForeignKey(
+        "dealers.Dealership",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="transactions",
         verbose_name="Dealership",
     )
-    name = models.CharField(max_length=200, verbose_name="Promotion name")
-    description = models.TextField(blank=True, verbose_name="Description")
-    discount_pct = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        verbose_name="Discount percent",
-    )
-    start_date = models.DateField(verbose_name="Start date")
-    end_date = models.DateField(verbose_name="End date")
-
-    class Meta:  # type: ignore
-        verbose_name = "Dealership promotion"
-        verbose_name_plural = "Dealership promotions"
-        ordering = ["dealer", "start_date"]
-
-    def __str__(self) -> str:
-        return f"{self.name} ({self.dealer.name})"
-
-
-class DealershipPromoModel(BaseModel):
-    """Links a dealership promotion to a car model.
-
-    Attributes:
-        id: Unique relation identifier.
-        promo: Related dealership promotion.
-        car_model: Related car model.
-    """
-
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
-    promo = models.ForeignKey(
-        "deals.DealershipPromo",
-        on_delete=models.CASCADE,
-        related_name="promo_models",
-        verbose_name="Promotion",
-    )
-    car_model = models.ForeignKey(
-        "cars.CarModel",
-        on_delete=models.CASCADE,
-        related_name="dealership_promo_links",
-        verbose_name="Car model",
-    )
-
-    class Meta:  # type: ignore
-        verbose_name = "Dealership promotion model"
-        verbose_name_plural = "Dealership promotion models"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["promo", "car_model"],
-                name="unique_dealership_promo_car_model",
-            )
-        ]
-
-    def __str__(self) -> str:
-        return f"{self.promo.name} → {self.car_model}"
-
-
-class SupplierPromo(BaseModel):
-    """Represents a promotional campaign created by a supplier.
-
-    Attributes:
-        id: Unique promotion identifier.
-        supplier: Related supplier that owns the promotion.
-        name: Promotion name.
-        description: Promotion description.
-        discount_pct: Discount percentage for eligible cars.
-        start_date: Date when the promotion starts.
-        end_date: Date when the promotion ends.
-    """
-
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     supplier = models.ForeignKey(
         "suppliers.Supplier",
-        on_delete=models.CASCADE,
-        related_name="promotions",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="transactions",
         verbose_name="Supplier",
-    )
-    name = models.CharField(max_length=150, verbose_name="Promotion name")
-    description = models.TextField(blank=True, verbose_name="Description")
-    discount_pct = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        verbose_name="Discount percent",
-    )
-    start_date = models.DateField(verbose_name="Start date")
-    end_date = models.DateField(verbose_name="End date")
-
-    class Meta:  # type: ignore
-        verbose_name = "Supplier promotion"
-        verbose_name_plural = "Supplier promotions"
-        ordering = ["supplier", "start_date"]
-
-    def __str__(self) -> str:
-        return f"{self.name} ({self.supplier.name})"
-
-
-class SupplierPromoModel(BaseModel):
-    """Links a supplier promotion to a car model.
-
-    Attributes:
-        id: Unique relation identifier.
-        promo: Related supplier promotion.
-        car_model: Related car model.
-    """
-
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
-    promo = models.ForeignKey(
-        "deals.SupplierPromo",
-        on_delete=models.CASCADE,
-        related_name="promo_models",
-        verbose_name="Promotion",
     )
     car_model = models.ForeignKey(
         "cars.CarModel",
         on_delete=models.CASCADE,
-        related_name="supplier_promo_links",
+        related_name="transactions",
         verbose_name="Car model",
     )
+    offer = models.OneToOneField(
+        "deals.Offer",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="transaction",
+        verbose_name="Offer",
+    )
+    reason = models.TextField(blank=True, verbose_name="Reason")
 
     class Meta:  # type: ignore
-        verbose_name = "Supplier promotion model"
-        verbose_name_plural = "Supplier promotion models"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["promo", "car_model"],
-                name="unique_supplier_promo_car_model",
-            )
-        ]
+        verbose_name = "Transaction"
+        verbose_name_plural = "Transactions"
+        ordering = ["-created_at"]
 
     def __str__(self) -> str:
-        return f"{self.promo.name} → {self.car_model}"
+        return f"{self.transaction_type} - {self.amount} USD"
+
+
+class PurchaseHistory(BaseModel):
+    """Stores completed buyer purchases for reporting and analytics.
+
+    Attributes:
+        id: Unique history record identifier.
+        buyer: Buyer who made the purchase.
+        offer: Related offer.
+        transaction: Related transaction.
+        dealership: Dealership where the purchase was made.
+        car_model: Purchased car model.
+        price_paid: Final paid price in USD.
+        purchased_at: Purchase timestamp.
+    """
+
+    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
+    buyer = models.ForeignKey(
+        "accounts.Buyer",
+        on_delete=models.CASCADE,
+        related_name="purchase_history",
+        verbose_name="Buyer",
+    )
+    offer = models.OneToOneField(
+        "deals.Offer",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="purchase_history",
+        verbose_name="Offer",
+    )
+    transaction = models.OneToOneField(
+        "deals.Transaction",
+        on_delete=models.CASCADE,
+        related_name="purchase_history",
+        verbose_name="Transaction",
+    )
+    dealership = models.ForeignKey(
+        "dealers.Dealership",
+        on_delete=models.CASCADE,
+        related_name="purchase_history",
+        verbose_name="Dealership",
+    )
+    car_model = models.ForeignKey(
+        "cars.CarModel",
+        on_delete=models.CASCADE,
+        related_name="purchase_history",
+        verbose_name="Car model",
+    )
+    price_paid = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="Price paid",
+    )
+    purchased_at = models.DateTimeField(auto_now_add=True, verbose_name="Purchased at")
+
+    class Meta:  # type: ignore
+        verbose_name = "Purchase history"
+        verbose_name_plural = "Purchase histories"
+        ordering = ["-purchased_at"]
+
+    def __str__(self) -> str:
+        return f"{self.buyer} - {self.car_model} ({self.price_paid} USD)"

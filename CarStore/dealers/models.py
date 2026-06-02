@@ -104,17 +104,24 @@ class DealershipPreference(BaseModel):
         verbose_name="Dealership",
     )
     body_type = models.CharField(
-        choices=[(e.value, e.value) for e in BodyTypesEnum], verbose_name="Body type"
+        max_length=20,
+        choices=BodyTypesEnum.choices,
+        verbose_name="Body type",
     )
     fuel_type = models.CharField(
-        choices=[(e.value, e.value) for e in FuelTypeEnum], verbose_name="Fuel type"
+        max_length=20,
+        choices=FuelTypeEnum.choices,
+        verbose_name="Fuel type",
     )
     transmission = models.CharField(
-        choices=[(e.value, e.value) for e in TransmissionTypeEnum],
+        max_length=10,
+        choices=TransmissionTypeEnum.choices,
         verbose_name="Transmission",
     )
     drive_type = models.CharField(
-        choices=[(e.value, e.value) for e in DriveTypeEnum], verbose_name="Drive type"
+        max_length=10,
+        choices=DriveTypeEnum.choices,
+        verbose_name="Drive type",
     )
     min_hp = models.SmallIntegerField(verbose_name="Min. horsepower")
     max_hp = models.SmallIntegerField(verbose_name="Max. horsepower")
@@ -249,3 +256,150 @@ class DealershipSupplier(BaseModel):
         verbose_name_plural = "Best suppliers for dealerships"
         unique_together = ["dealer_id", "supplier_id", "car_model_id"]
         ordering = ["dealer_id", "car_model_id", "best_price"]
+
+
+class DealershipPromo(BaseModel):
+    """
+    Represents a promotional campaign created by a dealership.
+
+    Attributes:
+        id: Unique promotion identifier.
+        dealer: Related dealership that owns the promotion.
+        name: Promotion name.
+        description: Promotion description.
+        discount_pct: Discount percentage for eligible cars.
+        start_date: Date when the promotion starts.
+        end_date: Date when the promotion ends.
+    """
+
+    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
+    dealer = models.ForeignKey(
+        "dealers.Dealership",
+        on_delete=models.CASCADE,
+        related_name="promotions",
+        verbose_name="Dealership",
+    )
+    name = models.CharField(max_length=200, verbose_name="Promotion name")
+    description = models.TextField(blank=True, verbose_name="Description")
+    discount_pct = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        verbose_name="Discount percent",
+    )
+    start_date = models.DateField(verbose_name="Start date")
+    end_date = models.DateField(verbose_name="End date")
+
+    class Meta:  # type: ignore
+        verbose_name = "Dealership promotion"
+        verbose_name_plural = "Dealership promotions"
+        ordering = ["dealer", "start_date"]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.dealer.name})"
+
+
+class DealershipPromoModel(BaseModel):
+    """
+    Links a dealership promotion to a car model.
+
+    Attributes:
+        id: Unique relation identifier.
+        promo: Related dealership promotion.
+        car_model: Related car model.
+    """
+
+    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
+    promo = models.ForeignKey(
+        "dealers.DealershipPromo",
+        on_delete=models.CASCADE,
+        related_name="promo_models",
+        verbose_name="Promotion",
+    )
+    car_model = models.ForeignKey(
+        "cars.CarModel",
+        on_delete=models.CASCADE,
+        related_name="dealership_promo_links",
+        verbose_name="Car model",
+    )
+
+    class Meta:  # type: ignore
+        verbose_name = "Dealership promotion model"
+        verbose_name_plural = "Dealership promotion models"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["promo", "car_model"],
+                name="unique_dealership_promo_car_model",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.promo.name} → {self.car_model}"
+
+
+class DealershipSale(BaseModel):
+    """Represents a completed sale from a dealership to a buyer.
+
+    Attributes:
+        id: Unique sale identifier.
+        dealership: Related dealership.
+        buyer: Related buyer.
+        car_model: Related car model.
+        offer: Related purchase offer.
+        promo: Applied dealership promotion, if any.
+        sale_price: Final sale price in USD.
+        discount_applied: Applied discount percentage.
+        sold_at: Date when the sale was completed.
+    """
+
+    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
+    dealership = models.ForeignKey(
+        "dealers.Dealership",
+        on_delete=models.CASCADE,
+        related_name="sales",
+        verbose_name="Dealership",
+    )
+    buyer = models.ForeignKey(
+        "accounts.Buyer",
+        on_delete=models.CASCADE,
+        related_name="purchases",
+        verbose_name="Buyer",
+    )
+    car_model = models.ForeignKey(
+        "cars.CarModel",
+        on_delete=models.CASCADE,
+        related_name="sales",
+        verbose_name="Car model",
+    )
+    offer = models.ForeignKey(
+        "deals.Offer",
+        on_delete=models.CASCADE,
+        related_name="sales",
+        verbose_name="Offer",
+    )
+    promo = models.ForeignKey(
+        "deals.DealershipPromo",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sales",
+        verbose_name="Dealership promotion",
+    )
+    sale_price = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="Sale price",
+    )
+    discount_applied = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        verbose_name="Discount applied",
+    )
+    sold_at = models.DateTimeField(auto_now_add=True, verbose_name="Sold at")
+
+    class Meta:  # type: ignore
+        verbose_name = "Dealership sale"
+        verbose_name_plural = "Dealership sales"
+        ordering = ["-sold_at", "-id"]
+
+    def __str__(self) -> str:
+        return f"{self.dealership.name} → {self.buyer} ({self.sale_price} USD)"

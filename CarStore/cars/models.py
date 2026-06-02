@@ -89,20 +89,16 @@ class CarModel(BaseModel):
     )
     name = models.CharField(max_length=100, verbose_name="Model name")
     body_type = models.CharField(
-        choices=[(e.value, e.value) for e in BodyTypesEnum],
-        verbose_name="Body type",
+        max_length=20, choices=BodyTypesEnum.choices, verbose_name="Body type"
     )
     fuel_type = models.CharField(
-        choices=[(e.value, e.value) for e in FuelTypeEnum],
-        verbose_name="Fuel type",
+        max_length=20, choices=FuelTypeEnum.choices, verbose_name="Fuel type"
     )
     transmission = models.CharField(
-        choices=[(e.value, e.value) for e in TransmissionTypeEnum],
-        verbose_name="Transmission",
+        max_length=10, choices=TransmissionTypeEnum.choices, verbose_name="Transmission"
     )
     drive_type = models.CharField(
-        choices=[(e.value, e.value) for e in DriveTypeEnum],
-        verbose_name="Drive type",
+        max_length=10, choices=DriveTypeEnum.choices, verbose_name="Drive type"
     )
     engine_volume = models.DecimalField(
         max_digits=3,
