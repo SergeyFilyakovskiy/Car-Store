@@ -1,5 +1,3 @@
-import uuid
-
 from config.settings import AUTH_USER_MODEL
 from core.models import BaseModel
 from django.contrib.gis.db import models
@@ -18,7 +16,6 @@ class Supplier(BaseModel):
         description: Free-form supplier description.
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     name = models.CharField(max_length=150, unique=True, verbose_name="Supplier name")
     country = models.CharField(max_length=56, verbose_name="Country")
     location = models.PointField(verbose_name="Location")
@@ -47,7 +44,6 @@ class SupplierCar(BaseModel):
         stock_quantity: Number of cars available in stock.
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     supplier_id = models.ForeignKey(
         "suppliers.Supplier",
         on_delete=models.CASCADE,
@@ -94,7 +90,6 @@ class SupplierLoyaltyDiscount(BaseModel):
         min_purchases: Minimum number of purchases required to apply the discount.
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     supplier_id = models.ForeignKey(
         "suppliers.Supplier",
         on_delete=models.CASCADE,
@@ -142,7 +137,6 @@ class SupplierPromo(BaseModel):
         end_date: Date when the promotion ends.
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     supplier = models.ForeignKey(
         "suppliers.Supplier",
         on_delete=models.CASCADE,
@@ -177,7 +171,6 @@ class SupplierPromoModel(BaseModel):
         car_model: Related car model.
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     promo = models.ForeignKey(
         "suppliers.SupplierPromo",
         on_delete=models.CASCADE,

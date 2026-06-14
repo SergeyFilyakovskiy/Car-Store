@@ -1,5 +1,3 @@
-import uuid
-
 from core.models import BaseModel
 from django.db import models
 
@@ -17,7 +15,6 @@ class SalesStatistics(BaseModel):
         calculated_at: Timestamp when the statistics were calculated.
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     dealership = models.OneToOneField(
         "dealers.Dealership",
         on_delete=models.CASCADE,

@@ -1,5 +1,3 @@
-import uuid
-
 from core.enums import BodyTypesEnum, DriveTypeEnum, FuelTypeEnum, TransmissionTypeEnum
 from core.models import BaseModel
 from django.db import models
@@ -25,7 +23,6 @@ class CarBrand(BaseModel):
         - Brand names should be unique across the database.
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     name = models.CharField(max_length=80, unique=True, verbose_name="Brand name")
     country = models.CharField(max_length=56, verbose_name="Country of origin")
 
@@ -80,7 +77,6 @@ class CarModel(BaseModel):
         - This model is the main car reference entity used by other apps.
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     brand_id = models.ForeignKey(
         "cars.CarBrand",
         on_delete=models.CASCADE,

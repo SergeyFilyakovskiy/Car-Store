@@ -1,5 +1,3 @@
-import uuid
-
 from core.enums import StatusEnum
 from core.models import BaseModel
 from django.db import models
@@ -17,7 +15,6 @@ class Offer(BaseModel):
         expires_at: Offer expiration timestamp.
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     buyer = models.ForeignKey(
         "accounts.Buyer",
         on_delete=models.CASCADE,
@@ -75,7 +72,6 @@ class Transaction(BaseModel):
         PURCHASE = "PURCHASE", "Purchase"
         SALE = "SALE", "Sale"
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     transaction_type = models.CharField(
         max_length=20,
         choices=TransactionType.choices,
@@ -149,7 +145,6 @@ class PurchaseHistory(BaseModel):
         purchased_at: Purchase timestamp.
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     buyer = models.ForeignKey(
         "accounts.Buyer",
         on_delete=models.CASCADE,

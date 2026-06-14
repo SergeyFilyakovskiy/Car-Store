@@ -47,7 +47,6 @@ class Buyer(BaseModel):
         MALE = "M", "Male"
         FEMALE = "F", "Female"
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
     user_id = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     balance = models.DecimalField(
         max_digits=14, decimal_places=2, verbose_name="Balance"

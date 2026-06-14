@@ -1,5 +1,3 @@
-import uuid
-
 from config import settings
 from core.enums import BodyTypesEnum, DriveTypeEnum, FuelTypeEnum, TransmissionTypeEnum
 from core.models import BaseModel
@@ -37,7 +35,6 @@ class Dealership(BaseModel):
         - Soft deletion via is_active field in BaseModel.
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     name = models.CharField(max_length=200, unique=True, verbose_name="Dealership name")
     country = models.CharField(max_length=56, verbose_name="Country")
     address = models.PointField(verbose_name="Address (coordinates)")
@@ -96,7 +93,6 @@ class DealershipPreference(BaseModel):
         - Celery task analyzes demand and purchases cars matching these criteria.
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     dealer_id = models.ForeignKey(
         "dealers.Dealership",
         on_delete=models.CASCADE,
@@ -170,7 +166,6 @@ class DealershipInventory(BaseModel):
         - Celery task checks inventory and purchases when stock is low (< 2 days demand).
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     dealer_id = models.ForeignKey(
         "dealers.Dealership",
         on_delete=models.CASCADE,
@@ -228,7 +223,6 @@ class DealershipSupplier(BaseModel):
         - During purchasing (every 10 min), system selects supplier with best price.
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     dealer_id = models.ForeignKey(
         "dealers.Dealership",
         on_delete=models.CASCADE,
@@ -272,7 +266,6 @@ class DealershipPromo(BaseModel):
         end_date: Date when the promotion ends.
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     dealer = models.ForeignKey(
         "dealers.Dealership",
         on_delete=models.CASCADE,
@@ -308,7 +301,6 @@ class DealershipPromoModel(BaseModel):
         car_model: Related car model.
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     promo = models.ForeignKey(
         "dealers.DealershipPromo",
         on_delete=models.CASCADE,
@@ -351,7 +343,6 @@ class DealershipSale(BaseModel):
         sold_at: Date when the sale was completed.
     """
 
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     dealership = models.ForeignKey(
         "dealers.Dealership",
         on_delete=models.CASCADE,
