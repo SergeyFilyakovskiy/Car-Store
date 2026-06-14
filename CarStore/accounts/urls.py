@@ -1,16 +1,25 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from .serializers import CustomTokenObtainPairView
-from .views import login_view, signup_view
+from .views import (
+    BuyerProfileAPIView,
+    BuyerProfileUpdateAPIView,
+    CustomTokenObtainPairView,
+    RegisterAPIView,
+    login_view,
+    signup_view,
+)
 
 urlpatterns = [
-    path("/signup", signup_view, name="signup"),
-    path("/login", login_view, name="login"),
-    path("/token", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("signup/", signup_view, name="signup"),
+    path("login/", login_view, name="login"),
+    path("register/", RegisterAPIView.as_view(), name="register"),
+    path("token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("buyer/profile/", BuyerProfileAPIView.as_view(), name="buyer_profile"),
     path(
-        "/token/refresh",
-        TokenRefreshView.as_view(),
-        name="token_refresh",
+        "buyer/profile/update/",
+        BuyerProfileUpdateAPIView.as_view(),
+        name="buyer_profile_update",
     ),
 ]

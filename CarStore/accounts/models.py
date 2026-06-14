@@ -47,7 +47,7 @@ class Buyer(BaseModel):
         MALE = "M", "Male"
         FEMALE = "F", "Female"
 
-    user_id = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     balance = models.DecimalField(
         max_digits=14, decimal_places=2, verbose_name="Balance"
     )
@@ -78,4 +78,4 @@ class Buyer(BaseModel):
         ordering = ["user_id"]
 
     def __str__(self) -> str:
-        return f"{self.user_id} ({self.balance} USD)"
+        return f"{self.user} ({self.balance} USD)"
