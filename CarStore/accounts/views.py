@@ -1,8 +1,51 @@
 from django.contrib.auth import authenticate, login
 from django.http import HttpRequest
 from django.shortcuts import redirect, render
+from rest_framework import generics, permissions
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+from accounts.models import Buyer
 
 from .forms import LoginForm, SignUpForm
+from .serializers import (
+    BuyerSerializer,
+    BuyerUpdateSerializer,
+    CustomTokenObtainPairSerializer,
+    RegisterSerializer,
+)
+
+
+class RegisterAPIView(generics.CreateAPIView):
+    """Register a new user."""
+
+    serializer_class = RegisterSerializer
+    permission_classes = [permissions.AllowAny]
+
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    """Obtain JWT pair with custom claims."""
+
+    serializer_class = CustomTokenObtainPairSerializer
+
+
+class BuyerProfileAPIView(generics.RetrieveUpdateAPIView):
+    """Get or update the current buyer profile."""
+
+    serializer_class = BuyerSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return Buyer.objects.get(user=self.request.user)
+
+
+class BuyerProfileUpdateAPIView(generics.UpdateAPIView):
+    """Update buyer profile fields."""
+
+    serializer_class = BuyerUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return Buyer.objects.get(user_id=self.request.user)
 
 
 def signup_view(request: HttpRequest):
