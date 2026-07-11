@@ -5,6 +5,7 @@ from rest_framework import generics, permissions
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from accounts.models import Buyer
+from accounts.permissions import IsOwnerProfile
 
 from .forms import LoginForm, SignUpForm
 from .serializers import (
@@ -28,11 +29,11 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
-class BuyerProfileAPIView(generics.RetrieveUpdateAPIView):
-    """Get or update the current buyer profile."""
+class BuyerProfileAPIView(generics.RetrieveAPIView):
+    """Get the current buyer profile."""
 
     serializer_class = BuyerSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsOwnerProfile]
 
     def get_object(self):
         return Buyer.objects.get(user=self.request.user)
@@ -42,10 +43,10 @@ class BuyerProfileUpdateAPIView(generics.UpdateAPIView):
     """Update buyer profile fields."""
 
     serializer_class = BuyerUpdateSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsOwnerProfile]
 
     def get_object(self):
-        return Buyer.objects.get(user_id=self.request.user)
+        return Buyer.objects.get(user=self.request.user)
 
 
 def signup_view(request: HttpRequest):
@@ -62,7 +63,7 @@ def signup_view(request: HttpRequest):
 
 def login_view(request: HttpRequest):
     form = LoginForm(data=request.POST or None)
-    if request.POST == "POST":
+    if request.method == "POST":
         if form.is_valid():
             username = form.cleaned_data["username"]
             password = form.cleaned_data["password"]
