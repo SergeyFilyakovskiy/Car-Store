@@ -33,6 +33,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    "accounts",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -42,14 +43,19 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "django.contrib.gis",
+    "drf_spectacular",
+    "drf_spectacular_sidecar",
 ]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuhtentication",
+        "rest_framework_simplejwt.authentication.JWTAuthentication"
     ],
     "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permission.IsAuthenticated",
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    "DEFAULT_SCHEMA_CLASS": [
+        "drf_spectacular.openapi.AutoSchema",
     ],
 }
 
@@ -63,7 +69,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "CarStore.urls"
+ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
     {
@@ -134,3 +140,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "CarStore API",
+    "DESCRIPTION": "CarStore API documention",
+    "VERSION": "0.0.1",
+    "SERVE_INCLUDE_SCHEMA": False,
+}
