@@ -22,7 +22,6 @@ env/
 .uv/
 
 # Environment variables
-.env
 .env.*
 
 # Ruff / Linters
