@@ -1,4 +1,4 @@
-FROM python:3.14-alpine
+FROM python:3.14-slim
 
 WORKDIR /app
 
@@ -7,7 +7,8 @@ ENV PYTHONUNBUFFERED=1
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml ./
+COPY uv.lock ./
 
 RUN uv sync --frozen --no-dev --no-install-project
 
