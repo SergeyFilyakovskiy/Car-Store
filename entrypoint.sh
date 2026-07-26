@@ -1,4 +1,4 @@
-
-python manage.py migrate --settings=settings.development
-
+#!/bin/sh
+set -e
+python CarStore/manage.py migrate --settings=config.settings
 exec "$@"
