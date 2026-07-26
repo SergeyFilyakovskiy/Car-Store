@@ -85,7 +85,7 @@ class BuyerSerializer(serializers.ModelSerializer):
             "country",
             "location",
             "preferred_body_type",
-            "perferred_fuel_type",
+            "preferred_fuel_type",
         )
 
 
@@ -102,5 +102,5 @@ class BuyerUpdateSerializer(serializers.ModelSerializer):
             "country",
             "location",
             "preferred_body_type",
-            "preferref_fuel_type",
+            "preferred_fuel_type",
         )

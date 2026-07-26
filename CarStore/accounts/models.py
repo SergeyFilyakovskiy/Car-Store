@@ -21,6 +21,7 @@ class User(AbstractUser):
         ("dealership", "Dealership"),
         ("admin", "Administrator"),
     )
+    email = models.EmailField(unique=True, verbose_name="Email")
 
     role = models.CharField(
         max_length=20, choices=ROLES, default="buyer", verbose_name="Роль"
