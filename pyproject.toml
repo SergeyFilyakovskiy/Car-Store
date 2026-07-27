@@ -30,3 +30,20 @@ dependencies = [
 dev = [
     "pre-commit>=4.6.0",
 ]
+
+[tool.pytest.ini_options]
+
+DJANGO_SETTINGS_MODULE = "config.settings"
+
+testpaths = ["CarStore"]
+
+python_files = ["test_*.py", "*_tests.py", "tests.py"]
+
+pythonpath = ["CarStore"]
+
+addopts = "--reuse-db --nomigrations --strict-markers"
+
+markers = [
+    "slow: marks tests as slow",
+    "fast: marks tests as fast"
+]
