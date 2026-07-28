@@ -5,11 +5,11 @@ COMPOSE_FILE := docker-compose.dev.yml
 
 # Запуск быстрых тестов (с маркером fast)
 test:
-	docker compose -f $(COMPOSE_FILE) exec django_app pytest CarStore -m fast -v
+	docker compose -f $(COMPOSE_FILE) exec django_app pytest /app/CarStore/tests/test_api.py  -m fast -v
 
 # Запуск всех тестов
 test-all:
-	docker compose -f $(COMPOSE_FILE) exec django_app pytest CarStore -v
+	docker compose -f $(COMPOSE_FILE) exec django_app pytest /app/CarStore -v
 
 # Запуск конкретного теста (пример: make test-file file=CarStore/tests/test_api.py)
 test-file:

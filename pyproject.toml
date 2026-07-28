@@ -32,18 +32,12 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-
 DJANGO_SETTINGS_MODULE = "config.settings"
-
-testpaths = ["CarStore"]
-
-python_files = ["test_*.py", "*_tests.py", "tests.py"]
-
 pythonpath = ["CarStore"]
-
+testpaths = ["CarStore/tests"]
+python_files = ["test_*.py", "*_tests.py", "tests.py"]
 addopts = "--reuse-db --nomigrations --strict-markers"
-
 markers = [
-    "slow: marks tests as slow",
-    "fast: marks tests as fast"
+    "fast: marks tests as fast to run on pre-commit",
+    "slow: marks tests as slow"
 ]
