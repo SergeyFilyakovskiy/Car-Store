@@ -5,7 +5,7 @@ from .serializers import CarBrandSerializer, CarModelSerializer
 
 
 class CarBrandListCreateAPIView(generics.ListCreateAPIView):
-    """Получить список брендов или создать новый."""
+    """Get a list of brands or create a new one."""
 
     queryset = CarBrand.objects.all()
     serializer_class = CarBrandSerializer
@@ -13,7 +13,7 @@ class CarBrandListCreateAPIView(generics.ListCreateAPIView):
 
 
 class CarBrandDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
-    """Получить, обновить или удалить конкретный бренд."""
+    """Retrieve, update, or delete a specific brand."""
 
     queryset = CarBrand.objects.all()
     serializer_class = CarBrandSerializer
@@ -21,7 +21,7 @@ class CarBrandDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class CarModelListCreateAPIView(generics.ListCreateAPIView):
-    """Получить список моделей или создать новую."""
+    """Get a list of models or create a new one."""
 
     queryset = CarModel.objects.select_related("brand").all()
     serializer_class = CarModelSerializer
@@ -35,7 +35,7 @@ class CarModelListCreateAPIView(generics.ListCreateAPIView):
 
 
 class CarModelDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
-    """Получить, обновить или удалить конкретную модель."""
+    """Retrieve, update, or delete a specific model."""
 
     queryset = CarModel.objects.select_related("brand").all()
     serializer_class = CarModelSerializer
