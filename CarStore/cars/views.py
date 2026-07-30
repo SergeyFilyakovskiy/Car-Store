@@ -28,7 +28,6 @@ class CarModelListCreateAPIView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
-        # Оптимизация: при создании не нужен select_related, только при чтении
         if self.request.method == "GET":
             return CarModel.objects.select_related("brand").all()
         return super().get_queryset()
