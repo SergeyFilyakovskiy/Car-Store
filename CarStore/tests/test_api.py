@@ -15,6 +15,7 @@ def test_register_api_success():
         "username": "testuser",
         "email": "test@example.com",
         "password": "testpassword",
+        "password2": "testpassword",
         "role": "buyer",
     }
     response = cast(Response, client.post(reverse("register"), payload, format="json"))
