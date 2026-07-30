@@ -71,7 +71,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class BuyerSerializer(serializers.ModelSerializer):
     """Serialize buyer prolife data."""
 
-    user = UserSerializer(source="user_id", read_only=True)
+    user = UserSerializer(read_only=True)
 
     class Meta:
         model = Buyer
