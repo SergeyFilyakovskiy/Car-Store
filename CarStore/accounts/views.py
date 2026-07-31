@@ -1,6 +1,6 @@
 from django.contrib.auth import authenticate, login
 from django.http import HttpRequest
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from rest_framework import generics, permissions
 from rest_framework_simplejwt.views import TokenObtainPairView
 
@@ -35,8 +35,8 @@ class BuyerProfileAPIView(generics.RetrieveAPIView):
     serializer_class = BuyerSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerProfile]
 
-    def get_object(self):
-        return Buyer.objects.get(user=self.request.user)
+    def get_object(self):  # pyright: ignore[reportIncompatibleMethodOverride]
+        return get_object_or_404(Buyer, user=self.request.user)
 
 
 class BuyerProfileUpdateAPIView(generics.UpdateAPIView):
@@ -45,8 +45,8 @@ class BuyerProfileUpdateAPIView(generics.UpdateAPIView):
     serializer_class = BuyerUpdateSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerProfile]
 
-    def get_object(self):
-        return Buyer.objects.get(user=self.request.user)
+    def get_object(self):  # pyright: ignore[reportIncompatibleMethodOverride]
+        return get_object_or_404(Buyer, user=self.request.user)
 
 
 def signup_view(request: HttpRequest):
