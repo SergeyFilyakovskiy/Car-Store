@@ -27,11 +27,6 @@ class CarModelListCreateAPIView(generics.ListCreateAPIView):
     serializer_class = CarModelSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
-    def get_queryset(self):
-        if self.request.method == "GET":
-            return CarModel.objects.select_related("brand").all()
-        return super().get_queryset()
-
 
 class CarModelDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update, or delete a specific model."""

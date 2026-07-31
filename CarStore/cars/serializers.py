@@ -15,9 +15,9 @@ class CarBrandSerializer(serializers.ModelSerializer):
 class CarModelSerializer(serializers.ModelSerializer):
     """Serialize car model data."""
 
-    brand = CarBrandSerializer(source="brand_id", read_only=True)
+    brand = CarBrandSerializer(read_only=True)
     brand_id = serializers.PrimaryKeyRelatedField(
-        source="brand_id",
+        source="brand",
         queryset=CarBrand.objects.all(),
         write_only=True,
     )
@@ -39,3 +39,6 @@ class CarModelSerializer(serializers.ModelSerializer):
             "year_to",
         )
         read_only_fields = ("id",)
+
+    def create(self, validated_data):
+        return super().create(validated_data)
