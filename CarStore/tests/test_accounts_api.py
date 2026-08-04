@@ -16,7 +16,7 @@ def api_client():
 
 @pytest.fixture
 def active_user(db):
-    """Создаёт активного пользователя (для тестов профиля)."""
+    """Creates an active user (for profile tests)."""
     user = User.objects.create_user(
         username="testuser",
         password="StrongPass123!",
@@ -29,7 +29,7 @@ def active_user(db):
 
 @pytest.fixture
 def buyer_profile(db, active_user):
-    """Создаёт профиль покупателя для пользователя."""
+    """Creates a buyer profile for the user."""
     buyer = Buyer.objects.create(
         user=active_user,
         balance=1000.00,
@@ -50,7 +50,7 @@ def buyer_profile(db, active_user):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_register_success(api_client):
-    """Успешная регистрация должна возвращать 201."""
+    """A successful registration should return 201."""
     payload = {
         "username": "newuser",
         "email": "new@example.com",
@@ -65,7 +65,6 @@ def test_register_success(api_client):
 
     assert response.status_code == 201, response.data
     assert User.objects.filter(username="newuser").exists()
-    # Примечание: пользователь создан с is_active=False из-за RegisterSerializer.create
     user = User.objects.get(username="newuser")
     assert user.is_active is False
 
@@ -73,7 +72,7 @@ def test_register_success(api_client):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_register_password_mismatch(api_client):
-    """Регистрация с несовпадающими паролями должна возвращать 400."""
+    """Registration with mismatched passwords should return a 400."""
     payload = {
         "username": "mismatch",
         "email": "mismatch@example.com",
@@ -93,7 +92,7 @@ def test_register_password_mismatch(api_client):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_register_weak_password(api_client):
-    """Регистрация со слабым паролем должна возвращать 400."""
+    """Registration with a weak password should return a 400."""
     payload = {
         "username": "weak",
         "email": "weak@example.com",
@@ -112,10 +111,10 @@ def test_register_weak_password(api_client):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_register_duplicate_email(api_client, active_user):
-    """Регистрация с существующим email должна возвращать 400."""
+    """Registration with an existing email should return a 400 status code."""
     payload = {
         "username": "duplicate",
-        "email": active_user.email,  # ← Уже существует
+        "email": active_user.email,
         "password": "StrongPass123!",
         "password2": "StrongPass123!",
         "role": "buyer",
@@ -134,7 +133,7 @@ def test_register_duplicate_email(api_client, active_user):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_token_obtain_success(api_client, active_user):
-    """Получение токена с валидными данными должно возвращать 200."""
+    """Obtaining a token with valid data should return a 200 status code."""
     payload = {
         "username": "testuser",
         "password": "StrongPass123!",
@@ -155,7 +154,7 @@ def test_token_obtain_success(api_client, active_user):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_token_obtain_invalid_credentials(api_client, active_user):
-    """Получение токена с неверным паролем должно возвращать 401."""
+    """Obtaining a token with an incorrect password should return a 401."""
     payload = {
         "username": "testuser",
         "password": "WrongPassword123!",
@@ -174,7 +173,7 @@ def test_token_obtain_invalid_credentials(api_client, active_user):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_get_buyer_profile_success(api_client, active_user, buyer_profile):
-    """Получение профиля покупателя должно работать для владельца."""
+    """Obtaining a buyer profile needs to work for the owner."""
     api_client.force_authenticate(user=active_user)
 
     response = cast(Response, api_client.get(reverse("buyer-profile")))
@@ -188,7 +187,7 @@ def test_get_buyer_profile_success(api_client, active_user, buyer_profile):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_get_buyer_profile_unauthenticated(api_client):
-    """Получение профиля без авторизации должно возвращать 401."""
+    """Retrieving the profile without authorization should return a 401."""
     response = cast(Response, api_client.get(reverse("buyer-profile")))
 
     assert response.status_code == 401
@@ -197,7 +196,7 @@ def test_get_buyer_profile_unauthenticated(api_client):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_get_buyer_profile_no_profile(api_client, active_user):
-    """Получение профиля без существующего Buyer должно возвращать 404."""
+    """Retrieving a profile without an existing Buyer should return a 404."""
     api_client.force_authenticate(user=active_user)
     # active_user не имеет связанного Buyer профиля
 
@@ -209,7 +208,7 @@ def test_get_buyer_profile_no_profile(api_client, active_user):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_update_buyer_profile_success(api_client, active_user, buyer_profile):
-    """Обновление профиля покупателя должно работать для владельца."""
+    """Updating the buyer profile should work for the owner."""
     api_client.force_authenticate(user=active_user)
 
     payload = {
@@ -233,7 +232,7 @@ def test_update_buyer_profile_success(api_client, active_user, buyer_profile):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_update_buyer_profile_unauthenticated(api_client, buyer_profile):
-    """Обновление профиля без авторизации должно возвращать 401."""
+    """Updating the profile without authorization should return a 401."""
     payload = {
         "balance": 9999.00,
     }
@@ -252,7 +251,7 @@ def test_update_buyer_profile_unauthenticated(api_client, buyer_profile):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_is_buyer_permission():
-    """Тест пермишена IsBuyer."""
+    """IsBuyer permission test."""
     from accounts.permissions import IsBuyer
     from django.contrib.auth.models import AnonymousUser
     from django.test import RequestFactory
@@ -260,17 +259,17 @@ def test_is_buyer_permission():
     factory = RequestFactory()
     request = factory.get("/fake-url")
 
-    # Неаутентифицированный пользователь
+    # Unauthenticated user
     request.user = AnonymousUser()
     permission = IsBuyer()
     assert permission.has_permission(request, None) is False
 
-    # Пользователь с ролью buyer
+    # User with the buyer role
     buyer_user = User(role="buyer")
     request.user = buyer_user
     assert permission.has_permission(request, None) is True
 
-    # Пользователь с другой ролью
+    # User with a different role
     supplier_user = User(role="supplier")
     request.user = supplier_user
     assert permission.has_permission(request, None) is False
@@ -279,7 +278,7 @@ def test_is_buyer_permission():
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_is_owner_profile_permission(api_client, active_user, buyer_profile):
-    """Тест пермишена IsOwnerProfile."""
+    """IsOwnerProfile permission test."""
     from accounts.permissions import IsOwnerProfile
     from django.test import RequestFactory
 
@@ -289,10 +288,10 @@ def test_is_owner_profile_permission(api_client, active_user, buyer_profile):
 
     permission = IsOwnerProfile()
 
-    # Владелец профиля
+    # Profile owner
     assert permission.has_object_permission(request, None, buyer_profile) is True
 
-    # Другой пользователь
+    # Another user
     other_user = User.objects.create_user(
         username="other", password="StrongPass123!", email="other@example.com"
     )
