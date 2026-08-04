@@ -15,9 +15,9 @@ class CarBrandSerializer(serializers.ModelSerializer):
 class CarModelSerializer(serializers.ModelSerializer):
     """Serialize car model data."""
 
-    brand = CarBrandSerializer(source="brand_id", read_only=True)
+    brand = CarBrandSerializer(read_only=True)
     brand_id = serializers.PrimaryKeyRelatedField(
-        source="brand_id",
+        source="brand",
         queryset=CarBrand.objects.all(),
         write_only=True,
     )

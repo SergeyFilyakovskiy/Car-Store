@@ -105,7 +105,7 @@ class IsOwnerProfile(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user and request.user.is_authenticated
 
-    def has_object_permission(self, request, view, obj):
+    def has_object_permission(self, request, view, obj):  # pyright: ignore[reportIncompatibleMethodOverride]
         if not (request.user and request.user.is_authenticated):
             return False
         return obj.user_id == request.user
