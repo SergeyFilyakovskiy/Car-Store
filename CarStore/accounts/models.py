@@ -76,7 +76,7 @@ class Buyer(BaseModel):
     class Meta:  # type: ignore
         verbose_name = "Buyer"
         verbose_name_plural = "Buyers"
-        ordering = ["user_id"]
+        ordering = ["user"]
 
     def __str__(self) -> str:
         return f"{self.user} ({self.balance} USD)"

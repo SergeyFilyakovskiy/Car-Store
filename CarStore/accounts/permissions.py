@@ -56,8 +56,7 @@ class HasRole(permissions.BasePermission):
         permission_classes = [HasRole("admin")]
     """
 
-    def __init__(self, required_role: str):
-        self.required_role = required_role
+    required_role = None
 
     def has_permission(self, request, view):
         return (
@@ -78,8 +77,7 @@ class HasRoleOrReadOnly(permissions.BasePermission):
         permission_classes = [HasRoleOrReadOnly("dealership")]
     """
 
-    def __init__(self, required_role: str):
-        self.required_role = required_role
+    required_role = None
 
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
@@ -108,4 +106,4 @@ class IsOwnerProfile(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):  # pyright: ignore[reportIncompatibleMethodOverride]
         if not (request.user and request.user.is_authenticated):
             return False
-        return obj.user_id == request.user
+        return obj.user == request.user
