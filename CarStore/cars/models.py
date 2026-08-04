@@ -77,7 +77,7 @@ class CarModel(BaseModel):
         - This model is the main car reference entity used by other apps.
     """
 
-    brand_id = models.ForeignKey(
+    brand = models.ForeignKey(
         "cars.CarBrand",
         on_delete=models.CASCADE,
         related_name="models",

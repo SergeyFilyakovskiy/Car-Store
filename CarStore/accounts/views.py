@@ -39,6 +39,7 @@ class BuyerProfileAPIView(generics.RetrieveAPIView):
         return get_object_or_404(Buyer, user=self.request.user)
 
 
+
 class BuyerProfileUpdateAPIView(generics.UpdateAPIView):
     """Update buyer profile fields."""
 

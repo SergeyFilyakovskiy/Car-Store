@@ -1,4 +1,4 @@
-.PHONY: test test-fast test-all lint format shell db migrate makemigrations up down restart logs build
+.PHONY: test test-fast test-all lint format shell db migrate makemigrations up down restart logs build build-with-cache
 
 # Переменная для docker-compose файла
 COMPOSE_FILE := docker-compose.dev.yml
@@ -6,6 +6,7 @@ COMPOSE_FILE := docker-compose.dev.yml
 # Запуск быстрых тестов (с маркером fast)
 test:
 	docker compose -f $(COMPOSE_FILE) exec django_app pytest /app/CarStore/tests/  -m fast -v
+
 
 # Запуск всех тестов
 test-all:
@@ -63,6 +64,10 @@ logs:
 build:
 	docker compose -f $(COMPOSE_FILE) build --no-cache
 
+# Сборка с кешем
+build-with-cache:
+	docker compose -f $(COMPOSE_FILE) build
+
 # Создание суперпользователя
 createsuperuser:
 	docker compose -f $(COMPOSE_FILE) exec django_app python manage.py createsuperuser
@@ -77,7 +82,6 @@ reset:
 	docker compose -f $(COMPOSE_FILE) down -v
 	docker compose -f $(COMPOSE_FILE) up -d --build
 
-# В существующий Makefile добавьте:
 logs-app:
 	docker compose -f $(COMPOSE_FILE) logs -f django_app
 
