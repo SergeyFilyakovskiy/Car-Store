@@ -39,6 +39,3 @@ class CarModelSerializer(serializers.ModelSerializer):
             "year_to",
         )
         read_only_fields = ("id",)
-
-    def create(self, validated_data):
-        return super().create(validated_data)

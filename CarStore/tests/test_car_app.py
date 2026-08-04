@@ -36,7 +36,7 @@ def car_brand(db):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_create_car_brand(api_client, authenticated_user):
-    """Создание бренда должно работать для авторизованного пользователя."""
+    """Brand creation must work for the authorized user."""
     api_client.force_authenticate(user=authenticated_user)
 
     payload = {
@@ -50,39 +50,39 @@ def test_create_car_brand(api_client, authenticated_user):
 
     assert response.status_code == 201, response.data
     assert CarBrand.objects.filter(name="BMW").exists()
-    assert response.data["name"] == "BMW"
-    assert response.data["country"] == "Germany"
+    assert response.data["name"] == "BMW"  # pyright: ignore[reportOptionalSubscript]
+    assert response.data["country"] == "Germany"  # pyright: ignore[reportOptionalSubscript]
 
 
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_get_car_brand_list(api_client, car_brand):
-    """Получение списка брендов должно работать без авторизации."""
+    """Retrieving the list of brands should work without authorization."""
     response = cast(Response, api_client.get(reverse("car-brand-list")))
 
     assert response.status_code == 200
-    assert len(response.data) == 1
-    assert response.data[0]["name"] == "Toyota"
+    assert len(response.data) == 1  # pyright: ignore[reportArgumentType]
+    assert response.data[0]["name"] == "Toyota"  # pyright: ignore[reportOptionalSubscript]
 
 
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_get_car_brand_detail(api_client, car_brand):
-    """Получение детальной информации о бренде."""
+    """Obtaining detailed information about the brand."""
     response = cast(
         Response,
         api_client.get(reverse("car-brand-detail", kwargs={"pk": car_brand.id})),
     )
 
     assert response.status_code == 200
-    assert response.data["name"] == "Toyota"
-    assert response.data["country"] == "Japan"
+    assert response.data["name"] == "Toyota"  # pyright: ignore[reportOptionalSubscript]
+    assert response.data["country"] == "Japan"  # pyright: ignore[reportOptionalSubscript]
 
 
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_update_car_brand(api_client, authenticated_user, car_brand):
-    """Обновление бренда должно работать для авторизованного пользователя."""
+    """The brand update must work for the authorized user."""
     api_client.force_authenticate(user=authenticated_user)
 
     payload = {
@@ -107,7 +107,7 @@ def test_update_car_brand(api_client, authenticated_user, car_brand):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_delete_car_brand(api_client, authenticated_user, car_brand):
-    """Удаление бренда должно работать для авторизованного пользователя."""
+    """Brand deletion should work for an authorized user."""
     api_client.force_authenticate(user=authenticated_user)
 
     response = cast(
@@ -122,7 +122,7 @@ def test_delete_car_brand(api_client, authenticated_user, car_brand):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_create_car_brand_unauthenticated(api_client):
-    """Создание бренда без авторизации должно возвращать 401 или 403."""
+    """Creating a brand without authorization should return a 401 or 403 status code."""
     payload = {
         "name": "Unauth Brand",
         "country": "Unknown",
@@ -141,7 +141,7 @@ def test_create_car_brand_unauthenticated(api_client):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_create_car_model(api_client, authenticated_user, car_brand):
-    """Создание модели автомобиля должно работать."""
+    """Creating a car model has to work."""
     api_client.force_authenticate(user=authenticated_user)
 
     payload = {
@@ -163,15 +163,15 @@ def test_create_car_model(api_client, authenticated_user, car_brand):
 
     assert response.status_code == 201, response.data
     assert CarModel.objects.filter(name="Camry").exists()
-    assert response.data["brand"]["name"] == "Toyota"
-    assert response.data["name"] == "Camry"
-    assert "brand_id" not in response.data
+    assert response.data["brand"]["name"] == "Toyota"  # pyright: ignore[reportOptionalSubscript]
+    assert response.data["name"] == "Camry"  # pyright: ignore[reportOptionalSubscript]
+    assert "brand_id" not in response.data  # pyright: ignore[reportOperatorIssue]
 
 
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_get_car_model_list(api_client, car_brand):
-    """Получение списка моделей должно работать без авторизации."""
+    """Retrieving the list of models should work without authorization."""
     CarModel.objects.create(
         brand=car_brand,
         name="Camry",
@@ -188,15 +188,15 @@ def test_get_car_model_list(api_client, car_brand):
     response = cast(Response, api_client.get(reverse("car-model-list")))
 
     assert response.status_code == 200
-    assert len(response.data) == 1
-    assert response.data[0]["name"] == "Camry"
-    assert response.data[0]["brand"]["name"] == "Toyota"
+    assert len(response.data) == 1  # pyright: ignore[reportArgumentType]
+    assert response.data[0]["name"] == "Camry"  # pyright: ignore[reportOptionalSubscript]
+    assert response.data[0]["brand"]["name"] == "Toyota"  # pyright: ignore[reportOptionalSubscript]
 
 
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_get_car_model_detail(api_client, car_brand):
-    """Получение детальной информации о модели."""
+    """Obtaining detailed information about the model."""
     car_model = CarModel.objects.create(
         brand=car_brand,
         name="Camry",
@@ -216,14 +216,14 @@ def test_get_car_model_detail(api_client, car_brand):
     )
 
     assert response.status_code == 200
-    assert response.data["name"] == "Camry"
-    assert response.data["brand"]["name"] == "Toyota"
+    assert response.data["name"] == "Camry"  # pyright: ignore[reportOptionalSubscript]
+    assert response.data["brand"]["name"] == "Toyota"  # pyright: ignore[reportOptionalSubscript]
 
 
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_create_car_model_invalid_brand(api_client, authenticated_user):
-    """Создание модели с несуществующим брендом должно возвращать 400."""
+    """Creating a model with a non-existent brand should return a 400 status code."""
     api_client.force_authenticate(user=authenticated_user)
 
     payload = {
@@ -249,7 +249,7 @@ def test_create_car_model_invalid_brand(api_client, authenticated_user):
 @pytest.mark.django_db
 @pytest.mark.fast
 def test_create_car_model_invalid_body_type(api_client, authenticated_user, car_brand):
-    """Создание модели с невалидным body_type должно возвращать 400."""
+    """Creating a model with an invalid body_type should return a 400."""
     api_client.force_authenticate(user=authenticated_user)
 
     payload = {

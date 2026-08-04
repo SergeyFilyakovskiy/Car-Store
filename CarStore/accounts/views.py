@@ -35,7 +35,7 @@ class BuyerProfileAPIView(generics.RetrieveAPIView):
     serializer_class = BuyerSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerProfile]
 
-    def get_object(self):
+    def get_object(self):  # pyright: ignore[reportIncompatibleMethodOverride]
         return Buyer.objects.get(user=self.request.user)
 
 
@@ -45,7 +45,7 @@ class BuyerProfileUpdateAPIView(generics.UpdateAPIView):
     serializer_class = BuyerUpdateSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerProfile]
 
-    def get_object(self):
+    def get_object(self):  # pyright: ignore[reportIncompatibleMethodOverride]
         return Buyer.objects.get(user=self.request.user)
 
 
