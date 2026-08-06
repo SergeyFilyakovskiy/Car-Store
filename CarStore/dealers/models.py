@@ -368,7 +368,7 @@ class DealershipSale(BaseModel):
         verbose_name="Offer",
     )
     promo = models.ForeignKey(
-        "deals.DealershipPromo",
+        "dealers.DealershipPromo",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
