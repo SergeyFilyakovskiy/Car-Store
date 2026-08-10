@@ -24,21 +24,21 @@ class SupplierSerializer(serializers.ModelSerializer):
             "description",
             "account_id",
         )
-        read_only_fields = ("id",)
+        read_only_fields = ("id", "account_id")
 
 
 class SupplierCarSerializer(serializers.ModelSerializer):
     """Serialize supplier car offers."""
 
-    supplier = serializers.StringRelatedField(source="supplier_id", read_only=True)
+    supplier = serializers.StringRelatedField(source="supplier", read_only=True)
     supplier_id = serializers.PrimaryKeyRelatedField(
-        source="supplier_id",
+        source="supplier",
         queryset=Supplier.objects.all(),
         write_only=True,
     )
-    car_model = serializers.StringRelatedField(source="car_model_id", read_only=True)
+    car_model = serializers.StringRelatedField(source="car_model", read_only=True)
     car_model_id = serializers.PrimaryKeyRelatedField(
-        source="car_model_id",
+        source="car_model",
         queryset=CarModel.objects.all(),
         write_only=True,
     )
