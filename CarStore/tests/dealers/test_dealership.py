@@ -32,7 +32,7 @@ class TestDealershipListCreate:
 
         assert response.status_code == 201, response.data
         assert Dealership.objects.filter(name="New Auto Center").exists()
-        assert response.data["account_id"] == str(dealership_user.id)  # pyright: ignore[reportOptionalSubscript]
+        assert str(response.data["account_id"]) == str(dealership_user.id)  # pyright: ignore[reportOptionalSubscript]
 
     def test_create_dealership_wrong_role(self, api_client, authenticated_user):
         """User without 'dealership' role cannot create a dealership."""

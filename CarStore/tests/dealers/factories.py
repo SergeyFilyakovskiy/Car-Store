@@ -4,6 +4,7 @@ Factory Boy factories for the dealers application.
 
 from datetime import timedelta
 
+import factory
 from core.enums import (
     BodyTypesEnum,
     DriveTypeEnum,
@@ -22,11 +23,14 @@ from dealers.models import (
 )
 from django.contrib.gis.geos import Point
 from factory.declarations import LazyAttribute, LazyFunction, Sequence, SubFactory
-from factory.django import DjangoModelFactory
 from factory.faker import Faker
+from tests.accounts.factories import BuyerFactory, UserFactory
+from tests.cars.factories import CarModelFactory
+from tests.deals.factories import OfferFactory
+from tests.suppliers.factories import SupplierFactory
 
 
-class DealershipFactory(DjangoModelFactory):
+class DealershipFactory(factory.django.DjangoModelFactory):
     """Factory for creating dealerships."""
 
     class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
@@ -36,11 +40,10 @@ class DealershipFactory(DjangoModelFactory):
     country = Faker("country_code")
     address = LazyFunction(lambda: Point(0, 0))
     balance = Faker("pydecimal", left_digits=6, right_digits=2, positive=True)
-    # Requires accounts.factories.UserFactory to exist
-    account_id = SubFactory("accounts.factories.UserFactory", role="dealership")
+    account_id = SubFactory(UserFactory, role="dealership")
 
 
-class DealershipPreferenceFactory(DjangoModelFactory):
+class DealershipPreferenceFactory(factory.django.DjangoModelFactory):
     """Factory for creating dealership preferences."""
 
     class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
@@ -57,33 +60,31 @@ class DealershipPreferenceFactory(DjangoModelFactory):
     max_price = Faker("pydecimal", left_digits=5, right_digits=2, positive=True)
 
 
-class DealershipInventoryFactory(DjangoModelFactory):
+class DealershipInventoryFactory(factory.django.DjangoModelFactory):
     """Factory for creating dealership inventory records."""
 
     class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = DealershipInventory
 
     dealer_id = SubFactory(DealershipFactory)
-    # Requires cars.factories.CarModelFactory to exist
-    car_model_id = SubFactory("cars.factories.CarModelFactory")
+    car_model_id = SubFactory(CarModelFactory)
     quantity = Faker("random_int", min=0, max=50)
     sale_price = Faker("pydecimal", left_digits=5, right_digits=2, positive=True)
 
 
-class DealershipSupplierFactory(DjangoModelFactory):
+class DealershipSupplierFactory(factory.django.DjangoModelFactory):
     """Factory for creating dealership best supplier links."""
 
     class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = DealershipSupplier
 
     dealer_id = SubFactory(DealershipFactory)
-    # Requires suppliers.factories.SupplierFactory to exist
-    supplier_id = SubFactory("suppliers.factories.SupplierFactory")
-    car_model_id = SubFactory("cars.factories.CarModelFactory")
+    supplier_id = SubFactory(SupplierFactory)
+    car_model_id = SubFactory(CarModelFactory)
     best_price = Faker("pydecimal", left_digits=5, right_digits=2, positive=True)
 
 
-class DealershipPromoFactory(DjangoModelFactory):
+class DealershipPromoFactory(factory.django.DjangoModelFactory):
     """Factory for creating dealership promotions."""
 
     class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
@@ -97,29 +98,25 @@ class DealershipPromoFactory(DjangoModelFactory):
     end_date = LazyAttribute(lambda o: o.start_date + timedelta(days=30))
 
 
-class DealershipPromoModelFactory(DjangoModelFactory):
+class DealershipPromoModelFactory(factory.django.DjangoModelFactory):
     """Factory for linking promos to car models."""
 
     class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = DealershipPromoModel
 
     promo = SubFactory(DealershipPromoFactory)
-    car_model = SubFactory("cars.factories.CarModelFactory")
+    car_model = SubFactory(CarModelFactory)
 
 
-class DealershipSaleFactory(DjangoModelFactory):
+class DealershipSaleFactory(factory.django.DjangoModelFactory):
     """Factory for creating dealership sales records."""
 
     class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = DealershipSale
 
     dealership = SubFactory(DealershipFactory)
-    # Requires accounts.factories.BuyerFactory to exist
-    buyer = SubFactory("accounts.factories.BuyerFactory")
-    car_model = SubFactory("cars.factories.CarModelFactory")
-    # Requires deals.factories.OfferFactory to exist
-    offer = SubFactory(
-        "deals.factories.OfferFactory", status=StatusEnum.COMPLETED.value
-    )
+    buyer = SubFactory(BuyerFactory)
+    car_model = SubFactory(CarModelFactory)
+    offer = SubFactory(OfferFactory, status=StatusEnum.COMPLETED.value)
     sale_price = Faker("pydecimal", left_digits=5, right_digits=2, positive=True)
     discount_applied = Faker("pydecimal", left_digits=2, right_digits=2, positive=True)

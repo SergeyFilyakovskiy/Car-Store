@@ -9,8 +9,7 @@ from core.enums import BodyTypesEnum, DriveTypeEnum, FuelTypeEnum, TransmissionT
 from dealers.models import DealershipPreference
 from django.urls import reverse
 from rest_framework.response import Response
-
-from CarStore.tests.dealers.factories import DealershipPreferenceFactory
+from tests.dealers.factories import DealershipPreferenceFactory
 
 
 @pytest.mark.django_db
@@ -80,7 +79,7 @@ class TestDealershipPreferenceCRUD:
 
         assert response.status_code == 200
         assert len(response.data) == 1  # pyright: ignore[reportArgumentType]
-        assert response.data[0]["dealer_id"] == str(dealership.id)  # pyright: ignore[reportOptionalSubscript]
+        assert str(response.data[0]["dealer_id"]) == str(dealership.id)  # pyright: ignore[reportOptionalSubscript]
 
     def test_delete_preference_non_owner(
         self, api_client, other_dealership_user, dealership_preference

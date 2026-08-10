@@ -3,7 +3,7 @@ Fixtures for the dealers application tests.
 """
 
 import pytest
-from dealers.factories import (
+from tests.dealers.factories import (
     DealershipFactory,
     DealershipInventoryFactory,
     DealershipPreferenceFactory,
@@ -16,7 +16,7 @@ from dealers.factories import (
 @pytest.fixture
 def dealership_user(db):
     """Creates a user with the 'dealership' role."""
-    from accounts.factories import UserFactory
+    from tests.accounts.factories import UserFactory
 
     return UserFactory(
         role="dealership", username="dealer_user", email="dealer@example.com"
@@ -62,7 +62,7 @@ def dealership_sale(db, dealership):
 @pytest.fixture
 def other_dealership_user(db):
     """Creates a different user with the 'dealership' role (for negative tests)."""
-    from accounts.factories import UserFactory
+    from tests.accounts.factories import UserFactory
 
     return UserFactory(
         role="dealership", username="other_dealer", email="other@example.com"
@@ -73,3 +73,12 @@ def other_dealership_user(db):
 def other_dealership(db, other_dealership_user):
     """Creates a dealership owned by other_dealership_user."""
     return DealershipFactory(account_id=other_dealership_user, name="Other Dealership")
+
+
+@pytest.fixture
+def car_model(db):
+    """Creates a test car model for inventory tests."""
+    from tests.cars.factories import CarBrandFactory, CarModelFactory
+
+    brand = CarBrandFactory(name="Test Brand", country="US")
+    return CarModelFactory(brand=brand, name="Test Model")

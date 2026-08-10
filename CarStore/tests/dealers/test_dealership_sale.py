@@ -21,7 +21,7 @@ class TestDealershipSaleReadOnly:
 
         assert response.status_code == 200
         assert len(response.data) == 1  # pyright: ignore[reportArgumentType]
-        assert response.data[0]["dealership"] == str(dealership.id)  # pyright: ignore[reportOptionalSubscript]
+        assert str(response.data[0]["dealership"]) == str(dealership.id)  # pyright: ignore[reportOptionalSubscript]
 
     def test_list_sales_isolation(
         self, api_client, other_dealership_user, dealership_sale
