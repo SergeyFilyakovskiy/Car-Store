@@ -17,7 +17,7 @@ class DealershipSerializer(serializers.ModelSerializer):
     class Meta:
         model = Dealership
         fields = ("id", "name", "country", "address", "balance", "account_id")
-        read_only_fields = ("id",)
+        read_only_fields = ("id", "account_id")
 
 
 class DealershipPreferenceSerializer(serializers.ModelSerializer):
