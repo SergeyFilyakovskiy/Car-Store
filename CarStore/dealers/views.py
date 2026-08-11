@@ -5,7 +5,7 @@ Provides CRUD endpoints for dealerships and their related entities
 (inventory, preferences, suppliers, promotions, and sales).
 """
 
-from accounts.permissions import HasRole  # Assuming this exists from your accounts app
+from accounts.permissions import IsDealership
 from rest_framework import generics, permissions, serializers
 
 from dealers.models import (
@@ -31,29 +31,29 @@ from dealers.serializers import (
 class IsDealershipOwner(permissions.BasePermission):
     """
     Custom permission to only allow owners of a dealership to access or modify
-    the dealership and its related objects.
+    the dealership and its related objects. Prevents IDOR vulnerabilities.
     """
 
     def has_object_permission(self, request, view, obj):  # pyright: ignore[reportIncompatibleMethodOverride]
-        # Dealership model
-        if hasattr(obj, "account_id"):
+        # 1. Dealership model (прямая связь)
+        if hasattr(obj, "account_id") and obj.account_id is not None:
             return obj.account_id == request.user
 
-        # Models with 'dealer_id' (Preference, Inventory, Supplier)
-        if hasattr(obj, "dealer_id"):
+        # 2. Models with 'dealership' (Sale) - ПРОВЕРЯЕМ ПЕРЕД promo!
+        if hasattr(obj, "dealership") and obj.dealership is not None:
+            return obj.dealership.account_id == request.user
+
+        # 3. Models with 'dealer_id' (Preference, Inventory, Supplier)
+        if hasattr(obj, "dealer_id") and obj.dealer_id is not None:
             return obj.dealer_id.account_id == request.user
 
-        # Models with 'dealer' (Promo)
-        if hasattr(obj, "dealer"):
+        # 4. Models with 'dealer' (Promo)
+        if hasattr(obj, "dealer") and obj.dealer is not None:
             return obj.dealer.account_id == request.user
 
-        # Models with 'promo' (PromoModel)
-        if hasattr(obj, "promo"):
+        # 5. Models with 'promo' (PromoModel) - nullable поле
+        if hasattr(obj, "promo") and obj.promo is not None:
             return obj.promo.dealer.account_id == request.user
-
-        # Models with 'dealership' (Sale)
-        if hasattr(obj, "dealership"):
-            return obj.dealership.account_id == request.user
 
         return False
 
@@ -67,15 +67,17 @@ class DealershipListCreateAPIView(generics.ListCreateAPIView):
     """List all dealerships or create a new one."""
 
     serializer_class = DealershipSerializer
-    permission_classes = [permissions.IsAuthenticated, HasRole("dealership")]  # pyright: ignore[reportCallIssue]
+    # ✅ ИСПРАВЛЕНО: Используем готовый класс IsDealership
+    permission_classes = [permissions.IsAuthenticated, IsDealership]
 
     def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
-        # Users can see all dealerships, or you can restrict to their own:
+        # Можно показывать все дилерские центры публично,
+        # или раскомментировать строку ниже, чтобы показывать только свои:
         # return Dealership.objects.filter(account_id=self.request.user)
         return Dealership.objects.all()
 
     def perform_create(self, serializer):
-        # Force the account_id to be the current authenticated user
+        # Принудительно привязываем создаваемый объект к текущему пользователю
         serializer.save(account_id=self.request.user)
 
 
@@ -269,7 +271,7 @@ class DealershipPromoModelDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
 
 
 # ==============================================================================
-# Dealership Sale Views
+# Dealership Sale Views (Read-Only)
 # ==============================================================================
 
 
