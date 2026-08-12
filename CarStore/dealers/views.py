@@ -35,6 +35,7 @@ class IsDealershipOwner(permissions.BasePermission):
     """
 
     def has_object_permission(self, request, view, obj):  # pyright: ignore[reportIncompatibleMethodOverride]
+
         if hasattr(obj, "account_id") and obj.account_id is not None:
             return obj.account_id == request.user
 
@@ -63,12 +64,14 @@ class DealershipListCreateAPIView(generics.ListCreateAPIView):
 
     serializer_class = DealershipSerializer
 
+
     permission_classes = [permissions.IsAuthenticated, IsDealership]
 
     def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
         return Dealership.objects.all()
 
     def perform_create(self, serializer):
+
         serializer.save(account_id=self.request.user)
 
 

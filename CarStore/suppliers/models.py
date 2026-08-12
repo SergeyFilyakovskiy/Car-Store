@@ -44,13 +44,13 @@ class SupplierCar(BaseModel):
         stock_quantity: Number of cars available in stock.
     """
 
-    supplier_id = models.ForeignKey(
+    supplier = models.ForeignKey(
         "suppliers.Supplier",
         on_delete=models.CASCADE,
         related_name="cars",
         verbose_name="Supplier",
     )
-    car_model_id = models.ForeignKey(
+    car_model = models.ForeignKey(
         "cars.CarModel",
         on_delete=models.CASCADE,
         related_name="supplier_offers",
@@ -75,7 +75,7 @@ class SupplierCar(BaseModel):
         ]
 
     def __str__(self) -> str:
-        return f"{self.supplier_id.name} - {self.car_model_id}"
+        return f"{self.supplier.name} - {self.car_model}"
 
 
 class SupplierLoyaltyDiscount(BaseModel):
@@ -90,13 +90,13 @@ class SupplierLoyaltyDiscount(BaseModel):
         min_purchases: Minimum number of purchases required to apply the discount.
     """
 
-    supplier_id = models.ForeignKey(
+    supplier = models.ForeignKey(
         "suppliers.Supplier",
         on_delete=models.CASCADE,
         related_name="loyalty_discounts",
         verbose_name="Supplier",
     )
-    dealer_id = models.ForeignKey(
+    dealer = models.ForeignKey(
         "dealers.Dealership",
         on_delete=models.CASCADE,
         related_name="supplier_discounts",
@@ -121,7 +121,7 @@ class SupplierLoyaltyDiscount(BaseModel):
         ]
 
     def __str__(self) -> str:
-        return f"{self.supplier_id.name} → {self.dealer_id.name} ({self.discount_pct}%)"
+        return f"{self.supplier.name} → {self.dealer.name} ({self.discount_pct}%)"
 
 
 class SupplierPromo(BaseModel):
