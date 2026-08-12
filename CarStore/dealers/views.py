@@ -35,23 +35,18 @@ class IsDealershipOwner(permissions.BasePermission):
     """
 
     def has_object_permission(self, request, view, obj):  # pyright: ignore[reportIncompatibleMethodOverride]
-        # 1. Dealership model (прямая связь)
         if hasattr(obj, "account_id") and obj.account_id is not None:
             return obj.account_id == request.user
 
-        # 2. Models with 'dealership' (Sale) - ПРОВЕРЯЕМ ПЕРЕД promo!
         if hasattr(obj, "dealership") and obj.dealership is not None:
             return obj.dealership.account_id == request.user
 
-        # 3. Models with 'dealer_id' (Preference, Inventory, Supplier)
         if hasattr(obj, "dealer_id") and obj.dealer_id is not None:
             return obj.dealer_id.account_id == request.user
 
-        # 4. Models with 'dealer' (Promo)
         if hasattr(obj, "dealer") and obj.dealer is not None:
             return obj.dealer.account_id == request.user
 
-        # 5. Models with 'promo' (PromoModel) - nullable поле
         if hasattr(obj, "promo") and obj.promo is not None:
             return obj.promo.dealer.account_id == request.user
 
@@ -67,17 +62,13 @@ class DealershipListCreateAPIView(generics.ListCreateAPIView):
     """List all dealerships or create a new one."""
 
     serializer_class = DealershipSerializer
-    # ✅ ИСПРАВЛЕНО: Используем готовый класс IsDealership
+
     permission_classes = [permissions.IsAuthenticated, IsDealership]
 
     def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
-        # Можно показывать все дилерские центры публично,
-        # или раскомментировать строку ниже, чтобы показывать только свои:
-        # return Dealership.objects.filter(account_id=self.request.user)
         return Dealership.objects.all()
 
     def perform_create(self, serializer):
-        # Принудительно привязываем создаваемый объект к текущему пользователю
         serializer.save(account_id=self.request.user)
 
 
