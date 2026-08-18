@@ -148,4 +148,5 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "CarStore API documention",
     "VERSION": "0.0.1",
     "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
 }
