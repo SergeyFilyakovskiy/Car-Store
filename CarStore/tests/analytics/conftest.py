@@ -3,7 +3,7 @@ Fixtures for the analytics application tests.
 """
 
 import pytest
-from analytics.factories import SalesStatisticsFactory
+from tests.analytics.factories import SalesStatisticsFactory
 
 
 @pytest.fixture

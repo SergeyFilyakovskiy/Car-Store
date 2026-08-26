@@ -8,6 +8,8 @@ import pytest
 from django.urls import reverse
 from rest_framework.response import Response
 from suppliers.models import SupplierCar
+from tests.accounts.conftest import supplier_user
+from tests.cars.conftest import car_model, car_brand
 
 
 @pytest.mark.django_db

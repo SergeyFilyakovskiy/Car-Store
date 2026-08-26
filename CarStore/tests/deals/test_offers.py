@@ -9,6 +9,9 @@ import pytest
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.response import Response
+from tests.accounts.conftest import buyer_user
+from tests.dealers.conftest import dealership_user
+from tests.cars.conftest import car_model, car_brand
 
 
 @pytest.mark.django_db

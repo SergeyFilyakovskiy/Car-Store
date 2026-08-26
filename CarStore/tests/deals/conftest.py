@@ -5,7 +5,11 @@ Fixtures for the deals application tests.
 from datetime import timedelta
 
 import pytest
-from deals.factories import OfferFactory, PurchaseHistoryFactory, TransactionFactory
+from tests.deals.factories import (
+    OfferFactory,
+    PurchaseHistoryFactory,
+    TransactionFactory,
+)
 from django.utils import timezone
 
 

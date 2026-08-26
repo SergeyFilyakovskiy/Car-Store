@@ -7,6 +7,10 @@ from typing import cast
 import pytest
 from django.urls import reverse
 from rest_framework.response import Response
+from tests.accounts.conftest import buyer_user, supplier_user
+from tests.dealers.conftest import dealership_user, dealership
+from tests.cars.conftest import car_brand, car_model
+from tests.suppliers.conftest import supplier
 
 
 @pytest.mark.django_db

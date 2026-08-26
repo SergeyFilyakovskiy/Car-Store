@@ -9,6 +9,8 @@ import pytest
 from django.urls import reverse
 from rest_framework.response import Response
 from suppliers.models import SupplierPromo
+from tests.accounts.conftest import supplier_user
+from tests.dealers.conftest import other_dealership_user, other_dealership
 
 
 @pytest.mark.django_db
