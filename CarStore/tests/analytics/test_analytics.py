@@ -27,7 +27,7 @@ class TestSalesStatisticsList:
 
         assert response.status_code == 200
         assert len(response.data) == 1  # pyright: ignore[reportArgumentType]
-        assert response.data[0]["dealership"] == str(sales_statistics.dealership.id)  # pyright: ignore[reportOptionalSubscript]
+        assert response.data[0]["dealership"] == sales_statistics.dealership.id  # pyright: ignore[reportOptionalSubscript]
 
     def test_list_statistics_wrong_role(self, api_client, authenticated_user):
         """Non-dealership user cannot access statistics."""

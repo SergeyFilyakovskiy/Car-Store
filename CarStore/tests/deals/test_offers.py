@@ -32,7 +32,7 @@ class TestOfferListCreate:
         )
 
         assert response.status_code == 201, response.data
-        assert response.data["buyer"] == str(buyer_user.buyer.id)  # pyright: ignore[reportOptionalSubscript]
+        assert response.data["buyer"] == buyer_user.buyer.id  # pyright: ignore[reportOptionalSubscript]
 
     def test_create_offer_wrong_role(self, api_client, dealership_user, car_model):
         """Non-buyer cannot create an offer."""

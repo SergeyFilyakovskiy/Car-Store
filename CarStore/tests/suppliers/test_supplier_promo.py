@@ -20,7 +20,7 @@ class TestSupplierPromoCRUD:
         """Supplier owner can create a promotion."""
         api_client.force_authenticate(user=supplier_user)
         payload = {
-            "supplier_id": str(supplier.id),
+            "supplier": str(supplier.id),
             "name": "Summer Sale",
             "description": "20% off",
             "discount_pct": "20.00",

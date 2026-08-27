@@ -10,7 +10,7 @@ class OfferSerializer(serializers.ModelSerializer):
     class Meta:
         model = Offer
         fields = ("id", "buyer", "car_model", "max_price", "status", "expires_at")
-        read_only_fields = ("id", "status")
+        read_only_fields = ("id", "status", "buyer")
 
 
 class TransactionSerializer(serializers.ModelSerializer):

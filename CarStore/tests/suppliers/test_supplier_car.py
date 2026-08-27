@@ -19,8 +19,8 @@ class TestSupplierCarCRUD:
         """Supplier owner can add a car to their catalog."""
         api_client.force_authenticate(user=supplier_user)
         payload = {
-            "supplier_id": str(supplier.id),
-            "car_model_id": str(car_model.id),
+            "supplier": str(supplier.id),
+            "car_model": str(car_model.id),
             "base_price": "35000.00",
             "stock_quantity": 10,
         }
@@ -34,14 +34,14 @@ class TestSupplierCarCRUD:
 
         assert response.status_code == 201, response.data
         assert SupplierCar.objects.filter(
-            supplier_id=supplier, car_model_id=car_model
+            supplier=supplier, car_model=car_model
         ).exists()
 
     def test_list_supplier_cars(self, api_client, supplier_user, supplier, car_model):
         """Supplier owner can list their cars."""
         SupplierCar.objects.create(
-            supplier_id=supplier,
-            car_model_id=car_model,
+            supplier=supplier,
+            car_model=car_model,
             base_price=35000.00,
             stock_quantity=10,
         )
