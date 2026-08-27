@@ -22,7 +22,7 @@ class TestBuyerProfileRetrieve:
         response = cast(Response, api_client.get(reverse("buyer-profile")))
 
         assert response.status_code == 200, response.data
-        assert response.data["user"]["username"] == buyer_user.username  # pyright: ignore[reportOptionalSubscript]
+        assert response.data["user"] == buyer_user.id  # pyright: ignore[reportOptionalSubscript]
         assert response.data["country"] == buyer_user.buyer.country  # pyright: ignore[reportOptionalSubscript]
 
     def test_get_profile_unauthenticated(self, api_client):

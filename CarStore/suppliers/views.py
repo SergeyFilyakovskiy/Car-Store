@@ -37,7 +37,7 @@ class IsSupplierOwner(permissions.BasePermission):
 
         # 2. Models with 'supplier_id' (SupplierCar, SupplierLoyaltyDiscount)
         if hasattr(obj, "supplier_id") and obj.supplier_id is not None:
-            return obj.supplier_id.account_id == request.user
+            return obj.supplier.account_id == request.user
 
         # 3. Models with 'supplier' (SupplierPromo)
         if hasattr(obj, "supplier") and obj.supplier is not None:
@@ -88,11 +88,11 @@ class SupplierCarListCreateAPIView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated, IsSupplierOwner]
 
     def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
-        return SupplierCar.objects.filter(supplier_id__account_id=self.request.user)
+        return SupplierCar.objects.filter(supplier__account_id=self.request.user)
 
     def perform_create(self, serializer):
-        supplier_id = serializer.validated_data.get("supplier_id")
-        if supplier_id.account_id != self.request.user:
+        supplier= serializer.validated_data.get("supplier")
+        if supplier.account_id != self.request.user:
             raise serializers.ValidationError(
                 {"supplier_id": "You do not own this supplier."}
             )
@@ -122,7 +122,7 @@ class SupplierLoyaltyDiscountListCreateAPIView(generics.ListCreateAPIView):
 
     def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
         return SupplierLoyaltyDiscount.objects.filter(
-            supplier_id__account_id=self.request.user
+            supplier__account_id=self.request.user
         )
 
     def perform_create(self, serializer):
@@ -142,7 +142,7 @@ class SupplierLoyaltyDiscountDetailAPIView(generics.RetrieveUpdateDestroyAPIView
 
     def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
         return SupplierLoyaltyDiscount.objects.filter(
-            supplier_id__account_id=self.request.user
+            supplier__account_id=self.request.user
         )
 
 
