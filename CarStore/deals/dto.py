@@ -5,8 +5,10 @@ from .models import Offer, PurchaseHistory, Transaction
 
 
 @dataclass(frozen=True)
-class DealsResult:
+class DealResult:
     offer: Offer
     transaction: Transaction
     purchase_history: PurchaseHistory
-    updated_user_balance: Decimal
+    updated_buyer_balance: Decimal
+    updated_inventory_quantity: int
+    final_price: Decimal
