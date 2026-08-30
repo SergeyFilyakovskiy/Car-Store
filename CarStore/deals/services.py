@@ -9,7 +9,12 @@ from django.utils import timezone
 from deals.models import Offer, PurchaseHistory, Transaction
 
 from .dto import DealResult
-from .exceptions import InsufficientBalanceError, OutOfStockError
+from .exceptions import (
+    InsufficientBalanceError,
+    OfferAlreadyProcessedError,
+    OfferExpiredError,
+    OutOfStockError,
+)
 
 
 def calculate_final_price(offer: Offer, inventory: DealershipInventory) -> Decimal:
@@ -44,6 +49,24 @@ def calculate_final_price(offer: Offer, inventory: DealershipInventory) -> Decim
 
 @transaction.atomic
 def accept_offer(offer: Offer, dealership: Dealership) -> DealResult:
+    """
+    Accepts an offer and creates a deal.
+
+    Raises:
+        OfferAlreadyProcessedError: if the offer has already been processed
+        OfferExpiredError: if the offer has expired
+        InsufficientBalanceError: if the buyer lacks funds
+        OutOfStockError: if there are no cars in stock
+    """
+
+    if offer.status != StatusEnum.PENDING:
+        raise OfferAlreadyProcessedError(
+            f"Offer {offer.id} already processed (status: {offer.status})"
+        )
+
+    if offer.expires_at < timezone.now():
+        raise OfferExpiredError(f"Offer {offer.id} expired at {offer.expires_at}")
+
     buyer = Buyer.objects.select_for_update().get(id=Offer.buyer)
     inventory = DealershipInventory.objects.select_for_update().get(
         dealer_id=dealership.id, car_model_id=offer.car_model
@@ -65,10 +88,6 @@ def accept_offer(offer: Offer, dealership: Dealership) -> DealResult:
     inventory.quantity -= 1
     inventory.save()
 
-    offer.accepted_price = final_price
-    offer.status = StatusEnum.COMPLETED
-    offer.save()
-
     transaction = Transaction.objects.create(
         transaction_type=Transaction.TransactionType.SALE,
         amount=final_price,
@@ -86,6 +105,10 @@ def accept_offer(offer: Offer, dealership: Dealership) -> DealResult:
         transaction=transaction,
         price_paid=final_price,
     )
+
+    offer.accepted_price = final_price
+    offer.status = StatusEnum.COMPLETED
+    offer.save()
 
     return DealResult(
         offer=offer,

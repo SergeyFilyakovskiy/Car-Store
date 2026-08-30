@@ -10,6 +10,12 @@ class OfferAlreadyProcessedError(DealError):
     pass
 
 
+class OfferExpiredError(DealError):
+    """Offer has expired."""
+
+    pass
+
+
 class InsufficientBalanceError(DealError):
     """Buyer doesn't have enough balance."""
 
