@@ -20,6 +20,6 @@ urlpatterns = [
         BuyerProfileUpdateAPIView.as_view(),
         name="buyer-profile-update",
     ),
-    path("login/", api_login_view, name="api_login"),
-    path("verify-otp/", api_verify_otp_view, name="api_verify_otp"),
+    path("login/", api_login_view, name="login"),
+    path("verify-otp/", api_verify_otp_view, name="verify_otp"),
 ]
