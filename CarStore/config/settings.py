@@ -159,6 +159,17 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": f"redis://{settings.redis_host}:\
+            {settings.redis_port}/{settings.redis_db}",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "PASSWORD": settings.redis_password.get_secret_value(),
+            "CONNECTION_POOL_KWARGS": {
+                "max_connections": 30,
+                "retry_on_timeout": True,
+            },
+        },
+        "TIMEOUT": 300,
     }
 }
