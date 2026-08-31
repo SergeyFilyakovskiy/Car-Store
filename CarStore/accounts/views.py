@@ -1,19 +1,25 @@
+# views.py
 from core.otp_utils import generate_and_send_otp, verify_otp
-from django.contrib.auth import authenticate, get_user_model, login, logout
-from django.http import HttpRequest
-from django.shortcuts import get_object_or_404, redirect, render
-from rest_framework import generics, permissions
+from django.contrib.auth import authenticate, get_user_model
+from django.core.cache import cache
+from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
+from rest_framework import generics, permissions, status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from accounts.models import Buyer
 from accounts.permissions import IsOwnerProfile
 
-from .forms import LoginForm, SignUpForm
 from .serializers import (
     BuyerSerializer,
     BuyerUpdateSerializer,
     CustomTokenObtainPairSerializer,
+    LoginSerializer,
     RegisterSerializer,
+    UserSerializer,
 )
 
 
@@ -50,76 +56,139 @@ class BuyerProfileUpdateAPIView(generics.UpdateAPIView):
         return get_object_or_404(Buyer, user=self.request.user)
 
 
-def signup_view(request: HttpRequest):
-    if request.method == "POST":
-        form = SignUpForm(request.POST)
+@extend_schema(
+    tags=["accounts"],
+    summary="Login with password (Step 1)",
+    description="Verifies password, sends OTP, returns a temporary pending_token.",
+    request=LoginSerializer,
+    responses={
+        200: {
+            "type": "object",
+            "properties": {
+                "pending_token": {"type": "string"},
+                "message": {"type": "string"},
+            },
+        }
+    },
+)
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def api_login_view(request):
+    serializer = LoginSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
 
-        if form.is_valid():
-            user = form.save()
-            login(request, user)
+    username = serializer.validated_data["username"]  # type: ignore
+    password = serializer.validated_data["password"]  # type: ignore
 
-            return redirect("home")
-    else:
-        form = SignUpForm()
+    user = authenticate(request, username=username, password=password)
 
-    return render(request, "signup.html", {"form": form})
+    if user is None:
+        return Response(
+            {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
+        )
 
+    cooldown_key = f"otp_cooldown_{user.id}"  # pyright: ignore[reportAttributeAccessIssue]
+    if cache.get(cooldown_key):
+        return Response(
+            {"error": "Too many requests. Please wait 60 seconds."},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
 
-def login_view(request: HttpRequest):
-    form = LoginForm(data=request.POST or None)
+    generate_and_send_otp(user)
 
-    if request.method == "POST":
-        if form.is_valid():
-            username = form.cleaned_data["username"]
-            password = form.cleaned_data["password"]
+    cache.set(cooldown_key, True, timeout=60)
 
-            user = authenticate(
-                username=username,
-                password=password,
-            )
+    pending_token = f"pending_{user.id}"  # pyright: ignore[reportAttributeAccessIssue]
+    cache.set(pending_token, user.id, timeout=300)  # pyright: ignore[reportAttributeAccessIssue]
 
-            if user is not None:
-                generate_and_send_otp(user)
-                request.session["pending_user_id"] = user.id  # pyright: ignore[reportAttributeAccessIssue]
-
-                return redirect("verify_otp")
-            else:
-                return render(
-                    request, "login.html", {"error": "Invalid login or password"}
-                )
-
-    return render(request, "login.html", {"form": form})
+    return Response(
+        {"message": "OTP sent to email", "pending_token": pending_token},
+        status=status.HTTP_200_OK,
+    )
 
 
-def verify_otp_view(request: HttpRequest):
-    pending_user_id = request.session.get("pending_user_id")
+@extend_schema(
+    tags=["accounts"],
+    summary="Verify OTP (Step 2)",
+    description="Verifies OTP and returns JWT tokens.",
+    request={
+        "application/json": {
+            "type": "object",
+            "properties": {
+                "otp": {"type": "string"},
+                "pending_token": {"type": "string"},
+            },
+            "required": ["otp", "pending_token"],
+        }
+    },
+    responses={
+        200: {
+            "type": "object",
+            "properties": {
+                "access": {"type": "string"},
+                "refresh": {"type": "string"},
+                "user": {"type": "object"},
+            },
+        }
+    },
+)
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def api_verify_otp_view(request):
+    pending_token = request.data.get("pending_token")
+    otp = request.data.get("otp")
 
-    if not pending_user_id:
-        return redirect("login")
+    if not pending_token or not otp:
+        return Response(
+            {"error": "pending_token and otp are required"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    user_id = cache.get(pending_token)
+    if not user_id:
+        return Response(
+            {"error": "Invalid or expired pending_token"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     User = get_user_model()
-
     try:
-        user = User.objects.get(id=pending_user_id)
+        user = User.objects.get(id=user_id)
     except User.DoesNotExist:
-        return redirect("login")
+        return Response({"error": "User not found"}, status=status.HTTP_400_BAD_REQUEST)
 
-    if request.method == "POST":
-        entered_otp = request.POST.get("otp")
-        is_valid, error_msg = verify_otp(user, entered_otp)
+    is_valid, error_msg = verify_otp(user, otp)
 
-        if is_valid:
-            del request.session["pending_user_id"]
-            login(request, user)
-            return redirect("home")
+    if is_valid:
+        cache.delete(pending_token)
 
-        else:
-            return render(request, "verify_otp.html", {"error": error_msg})
+        refresh = RefreshToken.for_user(user)
 
-    return render(request, "verify_otp.html")
+        return Response(
+            {
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+                "user": UserSerializer(user).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    return Response({"error": error_msg}, status=status.HTTP_401_UNAUTHORIZED)
 
 
-def logout_view(request: HttpRequest):
-    logout(request)
+@extend_schema(
+    tags=["accounts"],
+    summary="Logout",
+    description="Blacklists the refresh token (if using SimpleJWT blacklist app) or just returns success.",
+)
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def api_logout_view(request):
+    try:
+        refresh_token = request.data["refresh"]
+        token = RefreshToken(refresh_token)
+        token.blacklist()
+    except KeyError:
+        return Response({"error": "Refresh token is required"}, status=400)
 
-    return redirect("login")
+    return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)

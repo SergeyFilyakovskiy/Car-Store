@@ -6,13 +6,11 @@ from .views import (
     BuyerProfileUpdateAPIView,
     CustomTokenObtainPairView,
     RegisterAPIView,
-    login_view,
-    signup_view,
+    api_login_view,
+    api_verify_otp_view,
 )
 
 urlpatterns = [
-    path("signup/", signup_view, name="signup"),
-    path("login/", login_view, name="login"),
     path("register/", RegisterAPIView.as_view(), name="register"),
     path("token/", CustomTokenObtainPairView.as_view(), name="token-obtain-pair"),
     path("token/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
@@ -22,4 +20,6 @@ urlpatterns = [
         BuyerProfileUpdateAPIView.as_view(),
         name="buyer-profile-update",
     ),
+    path("login/", api_login_view, name="api_login"),
+    path("verify-otp/", api_verify_otp_view, name="api_verify_otp"),
 ]
