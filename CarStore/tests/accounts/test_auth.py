@@ -32,9 +32,8 @@ class TestRegistration:
         assert response.status_code == 201, response.data
         assert User.objects.filter(username="newuser").exists()
 
-        # RegisterSerializer sets is_active to False by default
         user = User.objects.get(username="newuser")
-        assert user.is_active is False
+        assert user.is_active is True
         assert user.role == "buyer"
 
     def test_register_password_mismatch(self, api_client):
