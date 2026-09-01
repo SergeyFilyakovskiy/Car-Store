@@ -23,6 +23,10 @@ class User(AbstractUser):
     )
     email = models.EmailField(unique=True, verbose_name="Email")
 
+    pending_email = models.EmailField(
+        unique=True, verbose_name="Pending Email", null=True
+    )
+
     role = models.CharField(
         max_length=20, choices=ROLES, default="buyer", verbose_name="Role"
     )
