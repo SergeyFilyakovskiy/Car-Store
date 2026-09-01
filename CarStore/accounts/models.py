@@ -24,7 +24,11 @@ class User(AbstractUser):
     email = models.EmailField(unique=True, verbose_name="Email")
 
     role = models.CharField(
-        max_length=20, choices=ROLES, default="buyer", verbose_name="Роль"
+        max_length=20, choices=ROLES, default="buyer", verbose_name="Role"
+    )
+
+    is_verifyed = models.BooleanField(
+        default=False, verbose_name="Email verification status"
     )
 
 
