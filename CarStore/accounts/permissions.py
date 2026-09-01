@@ -34,6 +34,17 @@ class IsDealership(permissions.BasePermission):
         )
 
 
+class IsEmailVerified(permissions.BasePermission):
+    """Allow access only to users with a verified email."""
+
+    def has_permission(self, request, view):  # pyright: ignore[reportIncompatibleMethodOverride]
+        return (
+            request.user
+            and request.user.is_authenticated
+            and getattr(request.user, "is_verified", None)
+        )
+
+
 class IsAdmin(permissions.BasePermission):
     """Allow access only to admin users."""
 
