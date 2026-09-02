@@ -32,6 +32,13 @@ class Offer(BaseModel):
         decimal_places=2,
         verbose_name="Maximum price",
     )
+    accepted_price = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="Accepted price",
+        null=True,
+        blank=True,
+    )
     status = models.CharField(
         max_length=20,
         choices=StatusEnum.choices,
