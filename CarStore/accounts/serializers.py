@@ -1,5 +1,6 @@
 from typing import Any
 
+from dealers.models import Dealership
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -17,6 +18,15 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ("id", "username", "email", "role")
+
+    def update(self, instance, validated_data):
+        if "email" in validated_data:
+            new_email = validated_data.pop("email")
+            if new_email != instance.user.email:
+                instance.user.pending_email = new_email
+                instance.user.save(update_fields=["pending_email"])
+
+        return super().update(instance, validated_data)
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -93,11 +103,8 @@ class BuyerUpdateSerializer(serializers.ModelSerializer):
             "preferred_fuel_type",
         )
 
-    def update(self, instance, validated_data):
-        if "email" in validated_data:
-            new_email = validated_data.pop("email")
-            if new_email != instance.user.email:
-                instance.user.pending_email = new_email
-                instance.user.save(update_fields=["pending_email"])
 
-        return super().update(instance, validated_data)
+class DelershipSerializar(serializers.ModelSerializer):
+    class Meta:
+        model = Dealership
+        fields = ()
