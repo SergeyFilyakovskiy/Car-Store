@@ -34,6 +34,17 @@ class IsDealership(permissions.BasePermission):
         )
 
 
+class IsEmailVerified(permissions.BasePermission):
+    """Allow access only to users with a verified email."""
+
+    def has_permission(self, request, view):  # pyright: ignore[reportIncompatibleMethodOverride]
+        return (
+            request.user
+            and request.user.is_authenticated
+            and getattr(request.user, "is_verified", None)
+        )
+
+
 class IsAdmin(permissions.BasePermission):
     """Allow access only to admin users."""
 
@@ -42,50 +53,6 @@ class IsAdmin(permissions.BasePermission):
             request.user
             and request.user.is_authenticated
             and getattr(request.user, "role", None) == "admin"
-        )
-
-
-class HasRole(permissions.BasePermission):
-    """
-    Allow access only to users with a specific role.
-
-    Usage:
-        permission_classes = [HasRole("buyer")]
-        permission_classes = [HasRole("supplier")]
-        permission_classes = [HasRole("dealership")]
-        permission_classes = [HasRole("admin")]
-    """
-
-    required_role = None
-
-    def has_permission(self, request, view):
-        return (
-            request.user
-            and request.user.is_authenticated
-            and getattr(request.user, "role", None) == self.required_role
-        )
-
-
-class HasRoleOrReadOnly(permissions.BasePermission):
-    """
-    Allow read-only access to any authenticated user,
-    but write access only to users with a specific role.
-
-    Usage:
-        permission_classes = [HasRoleOrReadOnly("buyer")]
-        permission_classes = [HasRoleOrReadOnly("supplier")]
-        permission_classes = [HasRoleOrReadOnly("dealership")]
-    """
-
-    required_role = None
-
-    def has_permission(self, request, view):
-        if request.method in permissions.SAFE_METHODS:
-            return request.user and request.user.is_authenticated
-        return (
-            request.user
-            and request.user.is_authenticated
-            and getattr(request.user, "role", None) == self.required_role
         )
 
 

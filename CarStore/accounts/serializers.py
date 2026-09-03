@@ -39,7 +39,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         password = validated_data.pop("password")
         user = User(**validated_data)
         user.set_password(password)
-        user.is_active = False
+        user.is_active = True
         user.save()
         return user
 
@@ -92,3 +92,12 @@ class BuyerUpdateSerializer(serializers.ModelSerializer):
             "preferred_body_type",
             "preferred_fuel_type",
         )
+
+    def update(self, instance, validated_data):
+        if "email" in validated_data:
+            new_email = validated_data.pop("email")
+            if new_email != instance.user.email:
+                instance.user.pending_email = new_email
+                instance.user.save(update_fields=["pending_email"])
+
+        return super().update(instance, validated_data)

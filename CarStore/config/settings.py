@@ -150,3 +150,26 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
 }
+
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+# FOR PROD
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'smtp.provider.com'
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": f"redis://{settings.redis_host}:\
+            {settings.redis_port}/{settings.redis_db}",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "PASSWORD": settings.redis_password.get_secret_value(),
+            "CONNECTION_POOL_KWARGS": {
+                "max_connections": 30,
+                "retry_on_timeout": True,
+            },
+        },
+        "TIMEOUT": 300,
+    }
+}

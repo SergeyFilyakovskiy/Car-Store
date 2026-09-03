@@ -1,18 +1,30 @@
-from django.contrib.auth import authenticate, login
-from django.http import HttpRequest
-from django.shortcuts import get_object_or_404, redirect, render
-from rest_framework import generics, permissions
+# views.py
+from core.otp_utils import (
+    generate_and_send_otp,
+    generate_email_change_otp,
+    verify_email_change_otp,
+    verify_otp,
+)
+from django.contrib.auth import authenticate, get_user_model
+from django.core.cache import cache
+from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
+from rest_framework import generics, permissions, status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from accounts.models import Buyer
 from accounts.permissions import IsOwnerProfile
 
-from .forms import LoginForm, SignUpForm
 from .serializers import (
     BuyerSerializer,
     BuyerUpdateSerializer,
     CustomTokenObtainPairSerializer,
+    LoginSerializer,
     RegisterSerializer,
+    UserSerializer,
 )
 
 
@@ -39,7 +51,6 @@ class BuyerProfileAPIView(generics.RetrieveAPIView):
         return get_object_or_404(Buyer, user=self.request.user)
 
 
-
 class BuyerProfileUpdateAPIView(generics.UpdateAPIView):
     """Update buyer profile fields."""
 
@@ -50,29 +61,255 @@ class BuyerProfileUpdateAPIView(generics.UpdateAPIView):
         return get_object_or_404(Buyer, user=self.request.user)
 
 
-def signup_view(request: HttpRequest):
-    if request.method == "POST":
-        form = SignUpForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            login(request, user)
-            return redirect("home")
-    else:
-        form = SignUpForm()
-    return render(request, "signup.html", {"form": form})
+@extend_schema(
+    tags=["accounts"],
+    summary="Login with password (Step 1)",
+    description="Verifies password, sends OTP, returns a temporary pending_token.",
+    request=LoginSerializer,
+    responses={
+        200: {
+            "type": "object",
+            "properties": {
+                "pending_token": {"type": "string"},
+                "message": {"type": "string"},
+            },
+        }
+    },
+)
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def api_login_view(request):
+    serializer = LoginSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    username = serializer.validated_data["username"]  # type: ignore
+    password = serializer.validated_data["password"]  # type: ignore
+
+    user = authenticate(request, username=username, password=password)
+
+    if user is None:
+        return Response(
+            {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    cooldown_key = f"otp_cooldown_{user.id}"  # pyright: ignore[reportAttributeAccessIssue]
+    if cache.get(cooldown_key):
+        return Response(
+            {"error": "Too many requests. Please wait 60 seconds."},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
+    generate_and_send_otp(user)
+
+    cache.set(cooldown_key, True, timeout=60)
+
+    pending_token = f"pending_{user.id}"  # pyright: ignore[reportAttributeAccessIssue]
+    cache.set(pending_token, user.id, timeout=300)  # pyright: ignore[reportAttributeAccessIssue]
+
+    return Response(
+        {"message": "OTP sent to email", "pending_token": pending_token},
+        status=status.HTTP_200_OK,
+    )
 
 
-def login_view(request: HttpRequest):
-    form = LoginForm(data=request.POST or None)
-    if request.method == "POST":
-        if form.is_valid():
-            username = form.cleaned_data["username"]
-            password = form.cleaned_data["password"]
-            user = authenticate(
-                username=username,
-                password=password,
-            )
-            if user is not None:
-                login(request, user)
-                return redirect("home")
-    return render(request, "login.html", {"form": form})
+@extend_schema(
+    tags=["accounts"],
+    summary="Verify OTP (Step 2)",
+    description="Verifies OTP and returns JWT tokens.",
+    request={
+        "application/json": {
+            "type": "object",
+            "properties": {
+                "otp": {"type": "string"},
+                "pending_token": {"type": "string"},
+            },
+            "required": ["otp", "pending_token"],
+        }
+    },
+    responses={
+        200: {
+            "type": "object",
+            "properties": {
+                "access": {"type": "string"},
+                "refresh": {"type": "string"},
+                "user": {"type": "object"},
+            },
+        }
+    },
+)
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def api_verify_otp_view(request):
+    pending_token = request.data.get("pending_token")
+    otp = request.data.get("otp")
+
+    if not pending_token or not otp:
+        return Response(
+            {"error": "pending_token and otp are required"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    user_id = cache.get(pending_token)
+    if not user_id:
+        return Response(
+            {"error": "Invalid or expired pending_token"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    User = get_user_model()
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    is_valid, error_msg = verify_otp(user, otp)
+
+    if is_valid:
+        cache.delete(pending_token)
+
+        refresh = RefreshToken.for_user(user)
+
+        return Response(
+            {
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+                "user": UserSerializer(user).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    return Response({"error": error_msg}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+@extend_schema(
+    tags=["accounts"],
+    summary="Logout",
+    description="Blacklists the refresh token (if using SimpleJWT blacklist app) or just returns success.",
+)
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def api_logout_view(request):
+    try:
+        refresh_token = request.data["refresh"]
+        token = RefreshToken(refresh_token)
+        token.blacklist()
+    except KeyError:
+        return Response({"error": "Refresh token is required"}, status=400)
+
+    return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=["accounts"],
+    summary="Request email change comfirmation",
+    description="Sends OTP to the new email address for confirmation.",
+)
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def request_email_change_view(request):
+    new_email = request.data.get("email")
+
+    if not new_email:
+        return Response(
+            {"error": "Email is required"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if new_email == request.user.email:
+        return Response(
+            {"error": "This is your current email"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    User = get_user_model()
+
+    if User.objects.filter(email=new_email).exists():
+        return Response(
+            {"error": "Email already in use"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    cooldown_key = f"email_change_cooldown_{request.user.id}"
+
+    if cache.get(cooldown_key, None):
+        return Response(
+            {"error": "Too many request try in 60 seconds"},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
+    request.user.pending_email = new_email
+    request.user.save(update_fields=["pending_email"])
+
+    generate_email_change_otp(request.user)
+
+    cache.set(cooldown_key, True, timeout=60)
+
+    return Response(
+        {
+            "message": f"Confirmation code sent to {new_email}",
+            "pending_email": new_email,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@extend_schema(
+    tags=["accounts"],
+    summary="Confirm email change",
+    description="Confirms the new email address with OTP.",
+    request={
+        "application/json": {
+            "type": "object",
+            "properties": {"otp": {"type": "string"}},
+            "required": ["otp"],
+        }
+    },
+)
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def confirm_email_change_view(request):
+    if not request.user.pending_email:
+        return Response(
+            {"error": "No pending email change"}, status=status.HTTP_404_NOT_FOUND
+        )
+
+    otp = request.data.get("otp")
+
+    if not otp:
+        return Response(
+            {"error": "OTP is required"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    is_valid, error_msg = verify_email_change_otp(request.user, otp)
+
+    if is_valid:
+        old_email = request.user.email
+        request.user.email = request.user.pending_email
+        request.user.pending_email = None
+        request.user.save(update_fields=["email", "pending_email"])
+
+        return Response(
+            {
+                "message": f"Email changed from {old_email} to {request.user.email}",
+                "email": request.user.email,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(
+    tags=["accounts"],
+    summary="Cancel pending email change",
+    description="Cancels the pending email change.",
+)
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def cancel_email_change_view(request):
+    if not request.user.pending_email:
+        return Response(
+            {"error": "No pending email change"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    request.user.pending_email = None
+    request.user.save(update_fields=["pending_email"])
+
+    return Response({"message": "Email change cancelled"}, status=status.HTTP_200_OK)
