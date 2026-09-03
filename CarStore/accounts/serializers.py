@@ -92,3 +92,12 @@ class BuyerUpdateSerializer(serializers.ModelSerializer):
             "preferred_body_type",
             "preferred_fuel_type",
         )
+
+    def update(self, instance, validated_data):
+        if "email" in validated_data:
+            new_email = validated_data.pop("email")
+            if new_email != instance.user.email:
+                instance.user.pending_email = new_email
+                instance.user.save(update_fields=["pending_email"])
+
+        return super().update(instance, validated_data)

@@ -1,5 +1,10 @@
 # views.py
-from core.otp_utils import generate_and_send_otp, verify_otp
+from core.otp_utils import (
+    generate_and_send_otp,
+    generate_email_change_otp,
+    verify_email_change_otp,
+    verify_otp,
+)
 from django.contrib.auth import authenticate, get_user_model
 from django.core.cache import cache
 from django.shortcuts import get_object_or_404
@@ -155,7 +160,7 @@ def api_verify_otp_view(request):
     try:
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
-        return Response({"error": "User not found"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
     is_valid, error_msg = verify_otp(user, otp)
 
@@ -192,3 +197,119 @@ def api_logout_view(request):
         return Response({"error": "Refresh token is required"}, status=400)
 
     return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=["accounts"],
+    summary="Request email change comfirmation",
+    description="Sends OTP to the new email address for confirmation.",
+)
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def request_email_change_view(request):
+    new_email = request.data.get("email")
+
+    if not new_email:
+        return Response(
+            {"error": "Email is required"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if new_email == request.user.email:
+        return Response(
+            {"error": "This is your current email"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    User = get_user_model()
+
+    if User.objects.filter(email=new_email).exists():
+        return Response(
+            {"error": "Email already in use"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    cooldown_key = f"email_change_cooldown_{request.user.id}"
+
+    if cache.get(cooldown_key, None):
+        return Response(
+            {"error": "Too many request try in 60 seconds"},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
+    request.user.pending_email = new_email
+    request.user.save(update_fields=["pending_email"])
+
+    generate_email_change_otp(request.user)
+
+    cache.set(cooldown_key, True, timeout=60)
+
+    return Response(
+        {
+            "message": f"Confirmation code sent to {new_email}",
+            "pending_email": new_email,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@extend_schema(
+    tags=["accounts"],
+    summary="Confirm email change",
+    description="Confirms the new email address with OTP.",
+    request={
+        "application/json": {
+            "type": "object",
+            "properties": {"otp": {"type": "string"}},
+            "required": ["otp"],
+        }
+    },
+)
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def confirm_email_change_view(request):
+    if not request.user.pending_email:
+        return Response(
+            {"error": "No pending email change"}, status=status.HTTP_404_NOT_FOUND
+        )
+
+    otp = request.data.get("otp")
+
+    if not otp:
+        return Response(
+            {"error": "OTP is required"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    is_valid, error_msg = verify_email_change_otp(request.user, otp)
+
+    if is_valid:
+        old_email = request.user.email
+        request.user.email = request.user.pending_email
+        request.user.pending_email = None
+        request.user.save(update_fields=["email", "pending_email"])
+
+        return Response(
+            {
+                "message": f"Email changed from {old_email} to {request.user.email}",
+                "email": request.user.email,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(
+    tags=["accounts"],
+    summary="Cancel pending email change",
+    description="Cancels the pending email change.",
+)
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def cancel_email_change_view(request):
+    if not request.user.pending_email:
+        return Response(
+            {"error": "No pending email change"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    request.user.pending_email = None
+    request.user.save(update_fields=["pending_email"])
+
+    return Response({"message": "Email change cancelled"}, status=status.HTTP_200_OK)
