@@ -24,12 +24,28 @@ class Config(BaseSettings):
     redis_host: str = Field(validation_alias="REDIS_HOST")
     redis_port: str = Field(validation_alias="REDIS_PORT")
     redis_db: str = Field(validation_alias="REDIS_AUTH_DB")
+    redis_celery_db: str = Field(validation_alias="REDIS_CELERY_DB")
+    redis_celery_result_db: str = Field(validation_alias="REDIS_CELERY_RESULT_DB")
 
     @property
     def redis_url(self) -> str:
         return (
             f"redis://:{self.redis_password.get_secret_value()}"
             f"@{self.redis_host}:{self.redis_port}/{self.redis_db}"
+        )
+
+    @property
+    def redis_url_celery(self) -> str:
+        return (
+            f"redis://:{self.redis_password.get_secret_value()}"
+            f"@{self.redis_host}:{self.redis_port}/{self.redis_celery_db}"
+        )
+
+    @property
+    def redis_url_result_db(self) -> str:
+        return (
+            f"redis://:{self.redis_password.get_secret_value()}"
+            f"@{self.redis_host}:{self.redis_port}/{self.redis_celery_result_db}"
         )
 
 
