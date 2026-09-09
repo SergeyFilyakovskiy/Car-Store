@@ -67,7 +67,7 @@ def accept_offer(offer: Offer, dealership: Dealership) -> DealResult:
     if offer.expires_at < timezone.now():
         raise OfferExpiredError(f"Offer {offer.id} expired at {offer.expires_at}")
 
-    buyer = Buyer.objects.select_for_update().get(id=Offer.buyer)
+    buyer = Buyer.objects.select_for_update().get(id=offer.buyer)
     inventory = DealershipInventory.objects.select_for_update().get(
         dealer_id=dealership.id, car_model_id=offer.car_model
     )
@@ -104,6 +104,7 @@ def accept_offer(offer: Offer, dealership: Dealership) -> DealResult:
         offer=offer,
         transaction=transaction,
         price_paid=final_price,
+        cost_price=inventory.purchase_price,
     )
 
     offer.accepted_price = final_price
