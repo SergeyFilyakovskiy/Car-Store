@@ -189,6 +189,11 @@ class PurchaseHistory(BaseModel):
         decimal_places=2,
         verbose_name="Price paid",
     )
+    cost_price = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="Cost price",
+    )
     purchased_at = models.DateTimeField(auto_now_add=True, verbose_name="Purchased at")
 
     class Meta:  # type: ignore
