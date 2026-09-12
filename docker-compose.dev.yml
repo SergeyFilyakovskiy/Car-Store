@@ -72,8 +72,6 @@ services:
     command: celery -A config worker -l info --concurrency=2
     volumes:
       - .:/app
-    env_file:
-      - .env
     depends_on:
       - django_app
       - redis
@@ -89,8 +87,6 @@ services:
     command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     volumes:
       - .:/app
-    env_file:
-      - .env
     depends_on:
       - django_app
       - redis
