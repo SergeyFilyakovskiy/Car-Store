@@ -63,3 +63,33 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  celery_worker:
+    build:
+     context: .
+     dockerfile: Dockerfile
+    container_name: carstore_celery_worker
+    command: celery -A config worker -l info --concurrency=2
+    volumes:
+      - .:/app
+    depends_on:
+      - django_app
+      - redis
+    networks:
+      - internal
+    restart: unless-stopped
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: carstore_celery_beat
+    command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    volumes:
+      - .:/app
+    depends_on:
+      - django_app
+      - redis
+    networks:
+      - internal
+    restart: unless-stopped

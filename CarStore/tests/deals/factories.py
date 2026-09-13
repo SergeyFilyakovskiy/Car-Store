@@ -61,3 +61,4 @@ class PurchaseHistoryFactory(factory.django.DjangoModelFactory):
     dealership = SubFactory("dealers.factories.DealershipFactory")
     car_model = SubFactory(CarModelFactory)
     price_paid = Faker("pydecimal", left_digits=5, right_digits=2, positive=True)
+    cost_price = Faker("pydecimal", left_digits= 5, right_digits=2, positive= True)

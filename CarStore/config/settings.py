@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 
+from celery.schedules import crontab
 from core.config import settings
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -172,4 +173,37 @@ CACHES = {
         },
         "TIMEOUT": 300,
     }
+}
+
+CELERY_BROKER_URL = f"{settings.redis_url}"
+CELERY_RESULT_BACKEND = f"{settings.redis_celery_result_db}"
+
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+
+CELERY_TIMEZONE = "UTC"
+CELERY_ENABLE_UTC = True
+
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
+CELERY_TASK_SOFT_TIME_LIMIT = 300
+CELERY_TASK_TIME_LIMIT = 360
+
+CELERY_TASK_ACKS_LATE = True
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
+
+CELERY_WORKER_HIJACK_ROOT_LOGGER = True
+CELERY_WORKER_LOG_FORMAT = "[%(asctime)s: %(levelname)s/%(processName)s] %(message)s"
+
+CELERY_BEAT_SCHEDULE = {
+    "calculate-sales-statistics-hourly": {
+        "task": "dealers.tasks.calculate_sales_statistics",
+        "schedule": crontab(minute=0, hour="*/1"),
+        "args": (),
+    },
+    "expire-offers-every-10-minutes": {
+        "task": "dealers.tasks.expire_offers",
+        "schedule": crontab(minute="*/10"),
+    },
 }
