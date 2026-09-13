@@ -35,6 +35,12 @@ class User(AbstractUser):
         default=False, verbose_name="Email verification status"
     )
 
+    balance = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        verbose_name="Balance (USD)",
+    )
+
 
 class Buyer(BaseModel):
     """Represents a buyer profile in the system.

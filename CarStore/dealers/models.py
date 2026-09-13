@@ -38,9 +38,7 @@ class Dealership(BaseModel):
     name = models.CharField(max_length=200, unique=True, verbose_name="Dealership name")
     country = models.CharField(max_length=56, verbose_name="Country")
     address = models.PointField(verbose_name="Address (coordinates)")
-    balance = models.DecimalField(
-        max_digits=14, decimal_places=2, verbose_name="Balance (USD)"
-    )
+
     account_id = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
