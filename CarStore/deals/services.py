@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from accounts.models import Buyer, User
+from accounts.services import BalanceService
 from core.enums import StatusEnum
 from dealers.models import Dealership, DealershipInventory, DealershipPromo
 from django.db import transaction
@@ -86,11 +87,8 @@ def accept_offer(offer: Offer, dealership: Dealership) -> DealResult:
             f"Need {final_price}, but buyer has {buyer_user.balance}"
         )
 
-    buyer_user.balance -= final_price
-    buyer_user.save(update_fields=["balance"])
-
-    dealership_user.balance += final_price
-    dealership_user.save(update_fields=["balance"])
+    BalanceService.debit(buyer_user, final_price)
+    BalanceService.credit(dealership_user, final_price)
 
     inventory.quantity -= 1
     inventory.save(update_fields=["quantity"])
