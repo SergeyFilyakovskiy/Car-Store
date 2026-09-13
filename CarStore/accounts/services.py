@@ -8,7 +8,7 @@ from django.db import transaction
 
 from .exceptions import (
     BalanceTopUpError,
-    TopUpAlreadyProcessedErorr,
+    TopUpAlreadyProcessedError,
     TopUpInvalidStatusError,
 )
 from .models import BalanceTopUp, User
@@ -82,7 +82,7 @@ class BalanceTopUpService:
 
         if topup.status == BalanceTopUp.Status.COMPLETED:
             if topup.external_transaction_id != external_id:
-                raise TopUpAlreadyProcessedErorr(
+                raise TopUpAlreadyProcessedError(
                     f"TopUp {topup_id} already completed with different external_id"
                 )
             return topup
