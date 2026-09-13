@@ -23,6 +23,7 @@ class TestDealershipInventoryCRUD:
             "car_model_id": str(car_model.id),
             "quantity": 5,
             "sale_price": "45000.00",
+            "purchase_price": "30000.00",
         }
 
         response = cast(

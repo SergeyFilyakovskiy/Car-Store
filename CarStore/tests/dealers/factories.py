@@ -70,6 +70,7 @@ class DealershipInventoryFactory(factory.django.DjangoModelFactory):
     car_model_id = SubFactory(CarModelFactory)
     quantity = Faker("random_int", min=0, max=50)
     sale_price = Faker("pydecimal", left_digits=5, right_digits=2, positive=True)
+    purchase_price = Faker("pydecimal", left_digits=5, right_digits=2, positive=True)
 
 
 class DealershipSupplierFactory(factory.django.DjangoModelFactory):

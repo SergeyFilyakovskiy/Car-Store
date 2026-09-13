@@ -29,7 +29,7 @@ def calculate_sales_statistics(self, dealership_id):
 
     try:
         if dealership_id:
-            dealership = Dealership.objects.filter(id=dealership_id)
+            dealership = Dealership.objects.get(id=dealership_id)
 
             stats = PurchaseHistory.objects.filter(dealership=dealership).aggregate(
                 total_sales=Count("id"),
@@ -55,13 +55,17 @@ def calculate_sales_statistics(self, dealership_id):
 
             return {"new_statistics_for": dealership.name}
 
+    except Dealership.DoesNotExist:
+        logger.error(f"Dealership with id {dealership_id} does not exist")
+        return {"status": "error", "reason": "dealership_not_found"}
+
     except Exception as exc:
         logger.error(f"Error calculating statistics: {exc}")
         raise self.retry(exc=exc, countdown=60)
 
 
 @shared_task
-def expire_offer():
+def expire_offers():
     """Marks expired offers as EXPIRED."""
 
     expired_count = Offer.objects.filter(
