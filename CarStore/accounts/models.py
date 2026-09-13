@@ -103,11 +103,17 @@ class BalanceTopUp(BaseModel):
         CARD = "CARD", "Card"
         CRYPTO = "CRYPTO", "Crypto"
 
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Ожидает оплаты"
+        PROCESSING = "PROCESSING", "Обрабатывается"
+        COMPLETED = "COMPLETED", "Завершено"
+        FAILED = "FAILED", "Ошибка"
+        CANCELLED = "CANCELLED", "Отменено"
+
     user = models.ForeignKey(
-        "accounts.User",
-        on_delete=models.CASCADE,
-        related_name="balance_topup",
-        verbose_name="User",
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="balance_topups",
     )
 
     amount = models.DecimalField(
@@ -123,15 +129,27 @@ class BalanceTopUp(BaseModel):
     external_transaction_id = models.CharField(
         max_length=255,
         blank=True,
+        null=True,
+        db_index=True,
+        unique=True,
         verbose_name="Tranaction ID payment system",
     )
 
     status = models.CharField(
         max_length=20,
-        default="PENDING",
+        default=Status.PENDING,
+        choices=Status.choices,
         verbose_name="Top up status",
+    )
+
+    payment_provider_response = models.JSONField(
+        default=dict,
+        blank=True,
     )
 
     class Meta:  # type: ignore
         verbose_name = "Balance top up"
-        verbose_name_plural = "Balance top up"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "status"]),
+        ]
