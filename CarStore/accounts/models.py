@@ -88,3 +88,44 @@ class Buyer(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.user} ({self.balance} USD)"
+
+
+class BalanceTopUp(BaseModel):
+    """User balance top-up."""
+
+    class PaymentMethod(models.TextChoices):
+        CARD = "CARD", "Card"
+        CRYPTO = "CRYPTO", "Crypto"
+
+    user = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.CASCADE,
+        related_name="balance_topup",
+        verbose_name="User",
+    )
+
+    amount = models.DecimalField(
+        decimal_places=2,
+        max_digits=12,
+        verbose_name="Amount",
+    )
+
+    payment_method = models.CharField(
+        max_length=20, choices=PaymentMethod.choices, verbose_name="Payment Method"
+    )
+
+    external_transaction_id = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Tranaction ID payment system",
+    )
+
+    status = models.CharField(
+        max_length=20,
+        default="PENDING",
+        verbose_name="Top up status",
+    )
+
+    class Meta:  # type: ignore
+        verbose_name = "Balance top up"
+        verbose_name_plural = "Balance top up"
