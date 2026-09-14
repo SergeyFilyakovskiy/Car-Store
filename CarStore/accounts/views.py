@@ -11,21 +11,30 @@ from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from accounts.models import Buyer
+from accounts.models import BalanceTopUp, Buyer
 from accounts.permissions import IsOwnerProfile
 
+from .exceptions import (
+    BalanceTopUpError,
+    TopUpInvalidStatusError,
+)
 from .serializers import (
     BuyerSerializer,
     BuyerUpdateSerializer,
+    CreateTopUpSerializer,
     CustomTokenObtainPairSerializer,
     LoginSerializer,
     RegisterSerializer,
+    TopUpStatusSerializer,
     UserSerializer,
 )
+from .services import BalanceTopUpService
 
 
 class RegisterAPIView(generics.CreateAPIView):
@@ -313,3 +322,71 @@ def cancel_email_change_view(request):
     request.user.save(update_fields=["pending_email"])
 
     return Response({"message": "Email change cancelled"}, status=status.HTTP_200_OK)
+
+
+class CreateTopUpView(APIView):
+    """
+    POST /api/topup
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request: Request):
+        serializer = CreateTopUpSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            topup = BalanceTopUpService.create_topup_request(
+                user=request.user.id,
+                amount=serializer.validated_data["amount"],  # type: ignore
+                payment_method=serializer.validated_data["payment_method"],  # type: ignore
+            )
+        except BalanceTopUpError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            {
+                "topup_id": topup.id,
+                "amount": str(topup.amount),
+                "status": topup.status,
+                # "payment_url": payment_url,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class TopUpStatusView(generics.RetrieveAPIView):
+    """
+    GET /api/topup/{id}/
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = TopUpStatusSerializer
+    lookup_field = "id"
+
+    def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
+        return BalanceTopUp.objects.filter(user=self.request.user)
+
+
+class TopUpCancelView(APIView):
+    """
+    POST /api/topup/{id}/cancel/
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, id):
+        try:
+            topup = BalanceTopUp.objects.get(id=id, user=request.user)
+        except BalanceTopUp.DoesNotExist:
+            return Response(
+                {"error": "TopUp not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            BalanceTopUpService.cancel_topup(topup.id)
+        except TopUpInvalidStatusError as e:
+            return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
+
+        return Response({"status": "cancelled"}, status=status.HTTP_200_OK)

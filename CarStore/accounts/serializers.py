@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Any
 
 from dealers.models import Dealership
@@ -5,7 +6,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from accounts.models import Buyer
+from accounts.models import BalanceTopUp, Buyer
 
 User = get_user_model()
 
@@ -108,3 +109,37 @@ class DelershipSerializar(serializers.ModelSerializer):
     class Meta:
         model = Dealership
         fields = ()
+
+
+class CreateTopUpSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        min_value=Decimal("1.00"),
+        max_value=Decimal("100000.00"),
+    )
+
+    payment_method = serializers.ChoiceField(
+        choices=[("CARD", "Card"), ("CRYPTO", "Crypto")],
+    )
+
+    def validate_amount(self, value):
+        if value > Decimal("100000.00"):
+            raise serializers.ValidationError(
+                "Single top-up cannot exceed $100,000.00",
+            )
+        return value
+
+
+class TopUpStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BalanceTopUp
+        fields = [
+            "id",
+            "amount",
+            "status",
+            "payment_method",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
