@@ -38,4 +38,9 @@ urlpatterns = [
         views.PurchaseHistoryDetailAPIView.as_view(),
         name="purchase-history-detail",
     ),
+    path(
+        "offers/accept/",
+        views.AcceptOfferView.as_view(),
+        name="accept-offer",
+    ),
 ]
