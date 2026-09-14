@@ -4,16 +4,27 @@ Views for the deals application.
 Provides endpoints for buyer offers, transactions, and purchase history.
 """
 
-from accounts.permissions import IsBuyer
+from accounts.permissions import IsBuyer, IsDealership
 from django.db import models
-from rest_framework import generics, permissions
+from rest_framework import generics, permissions, status
+from rest_framework.request import Request
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
+from deals.exceptions import (
+    InsufficientBalanceError,
+    OfferAlreadyProcessedError,
+    OfferExpiredError,
+    OutOfStockError,
+)
 from deals.models import Offer, PurchaseHistory, Transaction
 from deals.serializers import (
+    AcceptOfferSerializer,
     OfferSerializer,
     PurchaseHistorySerializer,
     TransactionSerializer,
 )
+from deals.services import accept_offer
 
 
 class IsOfferOwner(permissions.BasePermission):
@@ -167,4 +178,51 @@ class PurchaseHistoryDetailAPIView(generics.RetrieveAPIView):
         user = self.request.user
         return PurchaseHistory.objects.filter(
             models.Q(buyer__user=user) | models.Q(dealership__account_id=user)
+        )
+
+
+# ==============================================================================
+# Accept offer Views (Read-Only)
+# ==============================================================================
+
+
+class AcceptOfferView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsDealership]
+
+    def post(self, request: Request):
+        serialazer = AcceptOfferSerializer(data=request.data)
+        serialazer.is_valid(raise_exception=True)
+
+        try:
+            offer = Offer.objects.get(id=serialazer.validated_data["offer_id"])  # pyright: ignore[reportOptionalSubscript, reportIndexIssue]
+            dealership = request.user.dealership_profile
+        except Offer.DoesNotExist:
+            return Response(
+                {"error": "Offer not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        except AttributeError:
+            return Response(
+                {"error": "User is not a dealership"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            result = accept_offer(offer=offer, dealership=dealership)
+        except OfferAlreadyProcessedError as e:
+            return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
+        except OfferExpiredError as e:
+            return Response({"error": str(e)}, status=status.HTTP_410_GONE)
+        except InsufficientBalanceError as e:
+            return Response({"error": str(e)}, status=status.HTTP_402_PAYMENT_REQUIRED)
+        except OutOfStockError as e:
+            return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
+
+        return Response(
+            {
+                "offer_id": result.offer.id,
+                "final_price": str(result.final_price),
+                "new_balance": str(result.updated_buyer_balance),
+                "transaction_id": str(result.transaction.id),
+            },
+            status=status.HTTP_200_OK,
         )
