@@ -104,11 +104,11 @@ class BalanceTopUp(BaseModel):
         CRYPTO = "CRYPTO", "Crypto"
 
     class Status(models.TextChoices):
-        PENDING = "PENDING", "Ожидает оплаты"
-        PROCESSING = "PROCESSING", "Обрабатывается"
-        COMPLETED = "COMPLETED", "Завершено"
-        FAILED = "FAILED", "Ошибка"
-        CANCELLED = "CANCELLED", "Отменено"
+        PENDING = "PENDING", "Pending"
+        PROCESSING = "PROCESSING", "Processing"
+        COMPLETED = "COMPLETED", "Completed"
+        FAILED = "FAILED", "Failed"
+        CANCELLED = "CANCELLED", "Cancelled"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
