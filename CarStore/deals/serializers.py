@@ -65,3 +65,8 @@ class SalesStatisticsSerializer(serializers.ModelSerializer):
             "calculated_at",
         )
         read_only_fields = ("id", "calculated_at")
+
+
+class AcceptOfferSerializer(serializers.Serializer):
+    offer_id = serializers.UUIDField()
+    dealership_id = serializers.UUIDField()

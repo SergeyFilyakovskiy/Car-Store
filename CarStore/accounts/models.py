@@ -35,6 +35,12 @@ class User(AbstractUser):
         default=False, verbose_name="Email verification status"
     )
 
+    balance = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        verbose_name="Balance (USD)",
+    )
+
 
 class Buyer(BaseModel):
     """Represents a buyer profile in the system.
@@ -88,3 +94,62 @@ class Buyer(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.user} ({self.balance} USD)"
+
+
+class BalanceTopUp(BaseModel):
+    """User balance top-up."""
+
+    class PaymentMethod(models.TextChoices):
+        CARD = "CARD", "Card"
+        CRYPTO = "CRYPTO", "Crypto"
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        PROCESSING = "PROCESSING", "Processing"
+        COMPLETED = "COMPLETED", "Completed"
+        FAILED = "FAILED", "Failed"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="balance_topups",
+    )
+
+    amount = models.DecimalField(
+        decimal_places=2,
+        max_digits=12,
+        verbose_name="Amount",
+    )
+
+    payment_method = models.CharField(
+        max_length=20, choices=PaymentMethod.choices, verbose_name="Payment Method"
+    )
+
+    external_transaction_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        db_index=True,
+        unique=True,
+        verbose_name="Tranaction ID payment system",
+    )
+
+    status = models.CharField(
+        max_length=20,
+        default=Status.PENDING,
+        choices=Status.choices,
+        verbose_name="Top up status",
+    )
+
+    payment_provider_response = models.JSONField(
+        default=dict,
+        blank=True,
+    )
+
+    class Meta:  # type: ignore
+        verbose_name = "Balance top up"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "status"]),
+        ]

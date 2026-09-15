@@ -1,6 +1,7 @@
 from decimal import Decimal
 
-from accounts.models import Buyer
+from accounts.models import Buyer, User
+from accounts.services import BalanceService
 from core.enums import StatusEnum
 from dealers.models import Dealership, DealershipInventory, DealershipPromo
 from django.db import transaction
@@ -67,7 +68,11 @@ def accept_offer(offer: Offer, dealership: Dealership) -> DealResult:
     if offer.expires_at < timezone.now():
         raise OfferExpiredError(f"Offer {offer.id} expired at {offer.expires_at}")
 
-    buyer = Buyer.objects.select_for_update().get(id=offer.buyer)
+    buyer_user = User.objects.select_for_update().get(id=offer.buyer)
+    buyer_profile = Buyer.objects.get(id=offer.id)
+
+    dealership_user = User.objects.select_for_update().get(id=dealership.id)
+
     inventory = DealershipInventory.objects.select_for_update().get(
         dealer_id=dealership.id, car_model_id=offer.car_model
     )
@@ -77,28 +82,28 @@ def accept_offer(offer: Offer, dealership: Dealership) -> DealResult:
 
     final_price = calculate_final_price(offer, inventory)
 
-    if buyer.balance < final_price:
+    if buyer_user.balance < final_price:
         raise InsufficientBalanceError(
-            f"Need {final_price}, but buyer has {buyer.balance}"
+            f"Need {final_price}, but buyer has {buyer_user.balance}"
         )
 
-    buyer.balance -= final_price
-    buyer.save()
+    BalanceService.debit(buyer_user, final_price)
+    BalanceService.credit(dealership_user, final_price)
 
     inventory.quantity -= 1
-    inventory.save()
+    inventory.save(update_fields=["quantity"])
 
     transaction = Transaction.objects.create(
         transaction_type=Transaction.TransactionType.SALE,
         amount=final_price,
-        buyer=buyer,
+        buyer=buyer_profile,
         dealership=dealership,
         car_model=offer.car_model,
         offer=offer,
     )
 
     history = PurchaseHistory.objects.create(
-        buyer=buyer,
+        buyer=buyer_profile,
         dealership=dealership,
         car_model=offer.car_model,
         offer=offer,
@@ -109,13 +114,13 @@ def accept_offer(offer: Offer, dealership: Dealership) -> DealResult:
 
     offer.accepted_price = final_price
     offer.status = StatusEnum.COMPLETED
-    offer.save()
+    offer.save(update_fields=["accepted_price", "status"])
 
     return DealResult(
         offer=offer,
         transaction=transaction,
         purchase_history=history,
-        updated_buyer_balance=buyer.balance,
+        updated_buyer_balance=buyer_user.balance,
         updated_inventory_quantity=inventory.quantity,
         final_price=final_price,
     )
