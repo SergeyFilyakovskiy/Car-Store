@@ -11,34 +11,86 @@ from .exceptions import (
     TopUpAlreadyProcessedError,
     TopUpInvalidStatusError,
 )
-from .models import BalanceTopUp, User
+from .models import BalanceTopUp, LedgerEntry, User
 
 
 class BalanceService:
+    """
+    Single entry point for all balance mutations.
+
+    Contract:
+        - The `user` object MUST be locked with `select_for_update()` by the caller.
+        - Every debit/credit writes a LedgerEntry, so `User.balance` (fast cache)
+          and the ledger (journal) never diverge.
+    """
+
     @staticmethod
-    def debit(user: User, amount: Decimal) -> None:
+    @transaction.atomic
+    def debit(
+        user: User,
+        amount: Decimal,
+        entry_type: str,
+        description: str = "",
+        deal_transaction=None,
+        topup: BalanceTopUp | None = None,
+    ) -> LedgerEntry:
         """
-        Write off from the balance.
-        The user object must already be blocked.
+        Write off from the balance and record a ledger entry.
+        The user object must already be locked with select_for_update().
         """
+        if amount <= 0:
+            raise BalanceTopUpError("Amount must be positive")
+
         if user.balance < amount:
             raise InsufficientBalanceError(f"Need {amount}, but has {user.balance}")
+
         user.balance -= amount
         user.save(update_fields=["balance"])
 
+        return LedgerEntry.objects.create(
+            user=user,
+            amount=-amount,
+            entry_type=entry_type,
+            balance_after=user.balance,
+            description=description,
+            transaction=deal_transaction,
+            topup=topup,
+        )
+
     @staticmethod
-    def credit(user: User, amount: Decimal) -> None:
+    @transaction.atomic
+    def credit(
+        user: User,
+        amount: Decimal,
+        entry_type: str,
+        description: str = "",
+        deal_transaction=None,
+        topup: BalanceTopUp | None = None,
+    ) -> LedgerEntry:
         """
-        Credit to the balance.
-        The user object must already be blocked.
+        Credit to the balance and record a ledger entry.
+        The user object must already be locked with select_for_update().
         """
+        if amount <= 0:
+            raise BalanceTopUpError("Amount must be positive")
+
         user.balance += amount
         user.save(update_fields=["balance"])
+
+        return LedgerEntry.objects.create(
+            user=user,
+            amount=amount,
+            entry_type=entry_type,
+            balance_after=user.balance,
+            description=description,
+            transaction=deal_transaction,
+            topup=topup,
+        )
 
 
 class BalanceTopUpService:
     """
-    Service for work with users balance topups
+    Service for work with users balance topups.
 
     All methods are atomic and protected against re-processing (idempotent).
     """
@@ -50,10 +102,7 @@ class BalanceTopUpService:
         amount: Decimal,
         payment_method: str,
     ) -> BalanceTopUp:
-        """
-        Creates a replenishment request.
-        """
-
+        """Creates a replenishment request."""
         if amount <= 0:
             raise BalanceTopUpError("Amount must be positive")
 
@@ -63,7 +112,6 @@ class BalanceTopUpService:
             payment_method=payment_method,
             status=BalanceTopUp.Status.PENDING,
         )
-
         return topup
 
     @staticmethod
@@ -77,7 +125,6 @@ class BalanceTopUpService:
         Confirms the top-up and credits the funds.
         Called from the payment system's webhook.
         """
-
         topup = BalanceTopUp.objects.select_for_update().get(id=topup_id)
 
         if topup.status == BalanceTopUp.Status.COMPLETED:
@@ -92,9 +139,15 @@ class BalanceTopUpService:
                 f"TopUp {topup_id} has status {topup.status}, excepted PENDING"
             )
 
-        user = User.objects.select_for_update().get(user=topup.user)
+        user = User.objects.select_for_update().get(id=topup.user_id)  # pyright: ignore[reportAttributeAccessIssue]
 
-        BalanceService.credit(user, topup.amount)
+        BalanceService.credit(
+            user=user,
+            amount=topup.amount,
+            entry_type=LedgerEntry.EntryType.TOP_UP,
+            description=f"Balance top-up via {topup.payment_method}",
+            topup=topup,
+        )
 
         topup.status = BalanceTopUp.Status.COMPLETED
         topup.external_transaction_id = external_id
@@ -106,19 +159,12 @@ class BalanceTopUpService:
                 "payment_provider_response",
             ]
         )
-
-        # еще можно было бы добавить модель истории измений баланса
-
         return topup
 
     @staticmethod
     @transaction.atomic
-    def fail_topup(
-        topup_id: UUID,
-        reason: str = "",
-    ) -> BalanceTopUp:
+    def fail_topup(topup_id: UUID, reason: str = "") -> BalanceTopUp:
         """Mark TopUp as failed."""
-
         topup = BalanceTopUp.objects.select_for_update().get(id=topup_id)
 
         if topup.status != BalanceTopUp.Status.PENDING:
@@ -135,7 +181,6 @@ class BalanceTopUpService:
     @transaction.atomic
     def cancel_topup(topup_id: UUID) -> BalanceTopUp:
         """Cancel topup. For example - timeout."""
-
         topup = BalanceTopUp.objects.select_for_update().get(id=topup_id)
 
         if topup.status != BalanceTopUp.Status.PENDING:
@@ -144,7 +189,5 @@ class BalanceTopUpService:
             )
 
         topup.status = BalanceTopUp.Status.CANCELLED
-        topup.save(
-            update_fields=["status"],
-        )
+        topup.save(update_fields=["status"])
         return topup

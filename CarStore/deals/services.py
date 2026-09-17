@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from accounts.models import Buyer, User
+from accounts.models import LedgerEntry, User
 from accounts.services import BalanceService
 from core.enums import StatusEnum
 from dealers.models import Dealership, DealershipInventory, DealershipPromo
@@ -25,13 +25,12 @@ def calculate_final_price(offer: Offer, inventory: DealershipInventory) -> Decim
     Rule: the buyer pays the MINIMUM of (max_price, sale_price),
     minus active discounts.
     """
-
     base_price = min(offer.max_price, inventory.sale_price)
 
     active_promo = (
         DealershipPromo.objects.filter(
             dealer=inventory.dealer_id,
-            promo_active__car_model=offer.car_model,
+            promo_models__car_model=offer.car_model_id,  # pyright: ignore[reportAttributeAccessIssue]
             start_date__lte=timezone.now().date(),
             end_date__gte=timezone.now().date(),
         )
@@ -45,7 +44,7 @@ def calculate_final_price(offer: Offer, inventory: DealershipInventory) -> Decim
     else:
         final_price = base_price
 
-    return final_price
+    return final_price.quantize(Decimal("0.01"))
 
 
 @transaction.atomic
@@ -59,7 +58,6 @@ def accept_offer(offer: Offer, dealership: Dealership) -> DealResult:
         InsufficientBalanceError: if the buyer lacks funds
         OutOfStockError: if there are no cars in stock
     """
-
     if offer.status != StatusEnum.PENDING:
         raise OfferAlreadyProcessedError(
             f"Offer {offer.id} already processed (status: {offer.status})"
@@ -68,13 +66,25 @@ def accept_offer(offer: Offer, dealership: Dealership) -> DealResult:
     if offer.expires_at < timezone.now():
         raise OfferExpiredError(f"Offer {offer.id} expired at {offer.expires_at}")
 
-    buyer_user = User.objects.select_for_update().get(id=offer.buyer)
-    buyer_profile = Buyer.objects.get(id=offer.id)
+    # 1. Lock both users in ONE query (deterministic order -> no deadlocks)
+    buyer_user_id = offer.buyer.user_id
+    dealer_user_id = dealership.account_id_id  # pyright: ignore[reportAttributeAccessIssue]
+    locked_users = {
+        user.id: user
+        for user in User.objects.select_for_update().filter(
+            id__in=[buyer_user_id, dealer_user_id]
+        )
+    }
+    buyer_user = locked_users[buyer_user_id]
+    dealer_user = locked_users[dealer_user_id]
 
-    dealership_user = User.objects.select_for_update().get(id=dealership.id)
+    # 2. Buyer profile is already loaded on the offer instance - no extra query
+    buyer_profile = offer.buyer
 
+    # 3. Lock the inventory row
     inventory = DealershipInventory.objects.select_for_update().get(
-        dealer_id=dealership.id, car_model_id=offer.car_model
+        dealer_id=dealership.id,
+        car_model_id=offer.car_model_id,  # pyright: ignore[reportAttributeAccessIssue]
     )
 
     if inventory.quantity <= 0:
@@ -87,13 +97,8 @@ def accept_offer(offer: Offer, dealership: Dealership) -> DealResult:
             f"Need {final_price}, but buyer has {buyer_user.balance}"
         )
 
-    BalanceService.debit(buyer_user, final_price)
-    BalanceService.credit(dealership_user, final_price)
-
-    inventory.quantity -= 1
-    inventory.save(update_fields=["quantity"])
-
-    transaction = Transaction.objects.create(
+    # 4. Create the deal record FIRST, so ledger entries can reference it
+    deal_transaction = Transaction.objects.create(
         transaction_type=Transaction.TransactionType.SALE,
         amount=final_price,
         buyer=buyer_profile,
@@ -102,23 +107,45 @@ def accept_offer(offer: Offer, dealership: Dealership) -> DealResult:
         offer=offer,
     )
 
+    # 5. Move money via BalanceService (writes ledger entries atomically)
+    BalanceService.debit(
+        user=buyer_user,
+        amount=final_price,
+        entry_type=LedgerEntry.EntryType.PURCHASE,
+        description=f"Car purchase: {offer.car_model.name}",
+        deal_transaction=deal_transaction,
+    )
+    BalanceService.credit(
+        user=dealer_user,
+        amount=final_price,
+        entry_type=LedgerEntry.EntryType.SALE,
+        description=f"Car sale: {offer.car_model.name}",
+        deal_transaction=deal_transaction,
+    )
+
+    # 6. Decrease stock
+    inventory.quantity -= 1
+    inventory.save(update_fields=["quantity"])
+
+    # 7. Record purchase history
     history = PurchaseHistory.objects.create(
         buyer=buyer_profile,
         dealership=dealership,
         car_model=offer.car_model,
         offer=offer,
-        transaction=transaction,
+        transaction=deal_transaction,
         price_paid=final_price,
         cost_price=inventory.purchase_price,
     )
 
+    # 8. Finalize the offer
     offer.accepted_price = final_price
     offer.status = StatusEnum.COMPLETED
     offer.save(update_fields=["accepted_price", "status"])
 
     return DealResult(
         offer=offer,
-        transaction=transaction,
+        transaction=deal_transaction,
         purchase_history=history,
         updated_buyer_balance=buyer_user.balance,
         updated_inventory_quantity=inventory.quantity,
