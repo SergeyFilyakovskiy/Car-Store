@@ -1,10 +1,12 @@
 import uuid
+from decimal import Decimal
 
 from config import settings
 from core.enums import BodyTypesEnum, FuelTypeEnum
 from core.models import BaseModel
 from django.contrib.auth.models import AbstractUser
 from django.contrib.gis.db import models
+from django.db.models import Sum
 
 
 class User(AbstractUser):
@@ -40,6 +42,19 @@ class User(AbstractUser):
         decimal_places=2,
         verbose_name="Balance (USD)",
     )
+
+    def get_balance(self) -> Decimal:
+        """
+        Returns current balance based on all ledger entries.
+        This is the single source of truth.
+        """
+
+        result = self.ledger_entries.aggregate(total=Sum("amount"))  # pyright: ignore[reportAttributeAccessIssue]
+        return result["total"] or Decimal("0")
+
+    def get_balance_history(self, limit: int = 50):
+        """Returns recent balance history."""
+        return self.ledger_entries.order_by("-created_at")[:limit]  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class Buyer(BaseModel):
@@ -153,3 +168,71 @@ class BalanceTopUp(BaseModel):
         indexes = [
             models.Index(fields=["user", "status"]),
         ]
+
+
+class LedgerEntry(BaseModel):
+    """
+    Universal ledger entry for all financial operations.
+    Single source of truth for user balance.
+    """
+
+    class EntryType(models.TextChoices):
+        TOP_UP = "TOP_UP", "Balance Top-up"
+        PURCHASE = "PURCHASE", "Car Purchase (money out)"
+        SALE = "SALE", "Car Sale (money in)"
+        REFUND = "REFUND", "Refund"
+        ADJUSTMENT = "ADJUSTMENT", "Manual Adjustment"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="ledger_entries",
+        verbose_name="User",
+    )
+
+    amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        verbose_name="Amount",
+    )
+
+    entry_type = models.CharField(
+        max_length=20,
+        choices=EntryType.choices,
+        verbose_name="Entry type",
+    )
+
+    balance_after = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        verbose_name="Balance after",
+    )
+
+    transaction = models.ForeignKey(
+        "deals.Transaction",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ledger_entries",
+        verbose_name="Related transaction",
+    )
+
+    topup = models.ForeignKey(
+        "accounts.BalanceTopUp",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ledger_entries",
+        verbose_name="Related top-up",
+    )
+
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
+        verbose_name = "Ledger entry"
+        verbose_name_plural = "Ledger entries"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user.username}: {self.amount} ({self.entry_type})"
