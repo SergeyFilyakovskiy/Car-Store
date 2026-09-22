@@ -3,89 +3,107 @@
 from decimal import Decimal
 from uuid import UUID
 
-from deals.exceptions import InsufficientBalanceError
 from django.db import transaction
+from django.db import transaction as db_transaction
 
 from .exceptions import (
     BalanceTopUpError,
+    InsufficientBalanceError,
     TopUpAlreadyProcessedError,
     TopUpInvalidStatusError,
 )
-from .models import BalanceTopUp, LedgerEntry, User
+from .models import BalanceTopUp, Entry, Transaction, User
 
 
-class BalanceService:
-    """
-    Single entry point for all balance mutations.
-
-    Contract:
-        - The `user` object MUST be locked with `select_for_update()` by the caller.
-        - Every debit/credit writes a LedgerEntry, so `User.balance` (fast cache)
-          and the ledger (journal) never diverge.
-    """
+class MoneyService:
+    """Single entry point for all money movements."""
 
     @staticmethod
-    @transaction.atomic
-    def debit(
-        user: User,
+    def transfer(
+        *,
+        from_user_id,
+        to_user_id,
         amount: Decimal,
-        entry_type: str,
+        idempotency_key: str,
         description: str = "",
-        deal_transaction=None,
-        topup: BalanceTopUp | None = None,
-    ) -> LedgerEntry:
-        """
-        Write off from the balance and record a ledger entry.
-        The user object must already be locked with select_for_update().
-        """
+    ) -> Transaction:
+        """Moves money between two users: DEBIT + CREDIT."""
         if amount <= 0:
             raise BalanceTopUpError("Amount must be positive")
 
-        if user.balance < amount:
-            raise InsufficientBalanceError(f"Need {amount}, but has {user.balance}")
+        with db_transaction.atomic():
+            txn, _ = Transaction.objects.get_or_create(
+                idempotency_key=idempotency_key,
+                defaults={"description": description},
+            )
 
-        user.balance -= amount
-        user.save(update_fields=["balance"])
-
-        return LedgerEntry.objects.create(
-            user=user,
-            amount=-amount,
-            entry_type=entry_type,
-            balance_after=user.balance,
-            description=description,
-            transaction=deal_transaction,
-            topup=topup,
+        return MoneyService._run(
+            txn,
+            [
+                (from_user_id, amount, Entry.EntryType.DEBIT),
+                (to_user_id, amount, Entry.EntryType.CREDIT),
+            ],
         )
 
     @staticmethod
-    @transaction.atomic
     def credit(
-        user: User,
-        amount: Decimal,
-        entry_type: str,
-        description: str = "",
-        deal_transaction=None,
-        topup: BalanceTopUp | None = None,
-    ) -> LedgerEntry:
-        """
-        Credit to the balance and record a ledger entry.
-        The user object must already be locked with select_for_update().
-        """
+        *, user_id, amount: Decimal, idempotency_key: str, description: str = ""
+    ) -> Transaction:
+        """Money enters the system from outside (payment provider)."""
         if amount <= 0:
             raise BalanceTopUpError("Amount must be positive")
 
-        user.balance += amount
-        user.save(update_fields=["balance"])
+        with db_transaction.atomic():
+            txn, _ = Transaction.objects.get_or_create(
+                idempotency_key=idempotency_key,
+                defaults={"description": description},
+            )
 
-        return LedgerEntry.objects.create(
-            user=user,
-            amount=amount,
-            entry_type=entry_type,
-            balance_after=user.balance,
-            description=description,
-            transaction=deal_transaction,
-            topup=topup,
-        )
+        return MoneyService._run(txn, [(user_id, amount, Entry.EntryType.CREDIT)])
+
+    # -- internals ----------------------------------------------------------
+
+    @staticmethod
+    def _run(txn: Transaction, legs: list[tuple]) -> Transaction:
+        if txn.status == Transaction.Status.COMPLETED:
+            return txn  # idempotent replay: money already moved
+
+        try:
+            with db_transaction.atomic():
+                MoneyService._execute_legs(txn, legs)
+                txn.status = Transaction.Status.COMPLETED
+                txn.save(update_fields=["status"])
+        except Exception:
+            Transaction.objects.filter(
+                id=txn.id, status=Transaction.Status.PENDING
+            ).update(status=Transaction.Status.FAILED)
+            raise
+        return txn
+
+    @staticmethod
+    def _execute_legs(txn: Transaction, legs: list[tuple]) -> None:
+        user_ids = sorted({user_id for user_id, _, _ in legs})
+        locked = {
+            u.id: u for u in User.objects.select_for_update().filter(id__in=user_ids)
+        }
+        for user_id, amount, entry_type in legs:
+            user = locked[user_id]
+            if entry_type == Entry.EntryType.DEBIT:
+                if user.balance < amount:
+                    raise InsufficientBalanceError(
+                        f"User {user_id} has {user.balance}, needs {amount}"
+                    )
+                user.balance -= amount
+            else:
+                user.balance += amount
+            user.save(update_fields=["balance"])
+            Entry.objects.create(
+                transaction=txn,
+                user=user,
+                amount=amount,
+                type=entry_type,
+                balance_after=user.balance,
+            )
 
 
 class BalanceTopUpService:
@@ -139,15 +157,15 @@ class BalanceTopUpService:
                 f"TopUp {topup_id} has status {topup.status}, excepted PENDING"
             )
 
-        user = User.objects.select_for_update().get(id=topup.user_id)  # pyright: ignore[reportAttributeAccessIssue]
+        # user = User.objects.select_for_update().get(id=topup.user_id)  # pyright: ignore[reportAttributeAccessIssue]
 
-        BalanceService.credit(
-            user=user,
-            amount=topup.amount,
-            entry_type=LedgerEntry.EntryType.TOP_UP,
-            description=f"Balance top-up via {topup.payment_method}",
-            topup=topup,
-        )
+        # BalanceService.credit(
+        #     user=user,
+        #     amount=topup.amount,
+        #     entry_type=LedgerEntry.EntryType.TOP_UP,
+        #     description=f"Balance top-up via {topup.payment_method}",
+        #     topup=topup,
+        # )
 
         topup.status = BalanceTopUp.Status.COMPLETED
         topup.external_transaction_id = external_id

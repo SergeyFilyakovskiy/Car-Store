@@ -170,69 +170,56 @@ class BalanceTopUp(BaseModel):
         ]
 
 
-class LedgerEntry(BaseModel):
+class Transaction(BaseModel):
     """
-    Universal ledger entry for all financial operations.
-    Single source of truth for user balance.
+    A money event. Groups entries and guards against double processing.
+    Knows nothing about cars, dealerships or suppliers - only money.
     """
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        COMPLETED = "COMPLETED", "Completed"
+        FAILED = "FAILED", "Failed"
+
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDING
+    )
+    idempotency_key = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True)
+
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.idempotency_key} [{self.status}]"
+
+
+class Entry(BaseModel):
+    """One leg of a transaction: CREDIT (money in) or DEBIT (money out)."""
 
     class EntryType(models.TextChoices):
-        TOP_UP = "TOP_UP", "Balance Top-up"
-        PURCHASE = "PURCHASE", "Car Purchase (money out)"
-        SALE = "SALE", "Car Sale (money in)"
-        REFUND = "REFUND", "Refund"
-        ADJUSTMENT = "ADJUSTMENT", "Manual Adjustment"
-
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="ledger_entries",
-        verbose_name="User",
-    )
-
-    amount = models.DecimalField(
-        max_digits=14,
-        decimal_places=2,
-        verbose_name="Amount",
-    )
-
-    entry_type = models.CharField(
-        max_length=20,
-        choices=EntryType.choices,
-        verbose_name="Entry type",
-    )
-
-    balance_after = models.DecimalField(
-        max_digits=14,
-        decimal_places=2,
-        verbose_name="Balance after",
-    )
+        CREDIT = "CREDIT", "Credit"
+        DEBIT = "DEBIT", "Debit"
 
     transaction = models.ForeignKey(
-        "deals.Transaction",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="ledger_entries",
-        verbose_name="Related transaction",
+        Transaction, on_delete=models.CASCADE, related_name="entries"
     )
-
-    topup = models.ForeignKey(
-        "accounts.BalanceTopUp",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="ledger_entries",
-        verbose_name="Related top-up",
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="entries"
+    )
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    type = models.CharField(max_length=10, choices=EntryType.choices)
+    balance_after = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True
     )
 
     class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
-        verbose_name = "Ledger entry"
-        verbose_name_plural = "Ledger entries"
         ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["user", "-created_at"]),
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(amount__gt=0), name="entry_positive_amount"
+            )
         ]
 
     def __str__(self) -> str:
-        return f"{self.user.username}: {self.amount} ({self.entry_type})"
+        return f"{self.user.username}: {self.type} {self.amount}"

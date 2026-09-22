@@ -40,3 +40,9 @@ class StatusEnum(models.TextChoices):
     COMPLETED = "COMPLETED", "Completed"
     EXPIRED = "EXPIRED", "Expired"
     CANCELLED = "CANCELLED", "Cancelled"
+
+
+COUNTERPARTY_ROLE = {
+    "buyer": "dealership",
+    "dealership": "supplier",
+}
