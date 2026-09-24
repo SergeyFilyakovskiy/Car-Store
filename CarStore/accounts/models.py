@@ -1,10 +1,12 @@
 import uuid
+from decimal import Decimal
 
 from config import settings
 from core.enums import BodyTypesEnum, FuelTypeEnum
 from core.models import BaseModel
 from django.contrib.auth.models import AbstractUser
 from django.contrib.gis.db import models
+from django.db.models import Sum
 
 
 class User(AbstractUser):
@@ -40,6 +42,19 @@ class User(AbstractUser):
         decimal_places=2,
         verbose_name="Balance (USD)",
     )
+
+    def get_balance(self) -> Decimal:
+        """
+        Returns current balance based on all ledger entries.
+        This is the single source of truth.
+        """
+
+        result = self.ledger_entries.aggregate(total=Sum("amount"))  # pyright: ignore[reportAttributeAccessIssue]
+        return result["total"] or Decimal("0")
+
+    def get_balance_history(self, limit: int = 50):
+        """Returns recent balance history."""
+        return self.ledger_entries.order_by("-created_at")[:limit]  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class Buyer(BaseModel):
@@ -153,3 +168,58 @@ class BalanceTopUp(BaseModel):
         indexes = [
             models.Index(fields=["user", "status"]),
         ]
+
+
+class Transaction(BaseModel):
+    """
+    A money event. Groups entries and guards against double processing.
+    Knows nothing about cars, dealerships or suppliers - only money.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        COMPLETED = "COMPLETED", "Completed"
+        FAILED = "FAILED", "Failed"
+
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDING
+    )
+    idempotency_key = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True)
+
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.idempotency_key} [{self.status}]"
+
+
+class Entry(BaseModel):
+    """One leg of a transaction: CREDIT (money in) or DEBIT (money out)."""
+
+    class EntryType(models.TextChoices):
+        CREDIT = "CREDIT", "Credit"
+        DEBIT = "DEBIT", "Debit"
+
+    transaction = models.ForeignKey(
+        Transaction, on_delete=models.CASCADE, related_name="entries"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="entries"
+    )
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    type = models.CharField(max_length=10, choices=EntryType.choices)
+    balance_after = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True
+    )
+
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(amount__gt=0), name="entry_positive_amount"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user.username}: {self.type} {self.amount}"

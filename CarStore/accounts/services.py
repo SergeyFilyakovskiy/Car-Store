@@ -3,42 +3,112 @@
 from decimal import Decimal
 from uuid import UUID
 
-from deals.exceptions import InsufficientBalanceError
 from django.db import transaction
+from django.db import transaction as db_transaction
 
 from .exceptions import (
     BalanceTopUpError,
+    InsufficientBalanceError,
     TopUpAlreadyProcessedError,
     TopUpInvalidStatusError,
 )
-from .models import BalanceTopUp, User
+from .models import BalanceTopUp, Entry, Transaction, User
 
 
-class BalanceService:
-    @staticmethod
-    def debit(user: User, amount: Decimal) -> None:
-        """
-        Write off from the balance.
-        The user object must already be blocked.
-        """
-        if user.balance < amount:
-            raise InsufficientBalanceError(f"Need {amount}, but has {user.balance}")
-        user.balance -= amount
-        user.save(update_fields=["balance"])
+class MoneyService:
+    """Single entry point for all money movements."""
 
     @staticmethod
-    def credit(user: User, amount: Decimal) -> None:
-        """
-        Credit to the balance.
-        The user object must already be blocked.
-        """
-        user.balance += amount
-        user.save(update_fields=["balance"])
+    def transfer(
+        *,
+        from_user_id,
+        to_user_id,
+        amount: Decimal,
+        idempotency_key: str,
+        description: str = "",
+    ) -> Transaction:
+        """Moves money between two users: DEBIT + CREDIT."""
+        if amount <= 0:
+            raise BalanceTopUpError("Amount must be positive")
+
+        with db_transaction.atomic():
+            txn, _ = Transaction.objects.get_or_create(
+                idempotency_key=idempotency_key,
+                defaults={"description": description},
+            )
+
+        return MoneyService._run(
+            txn,
+            [
+                (from_user_id, amount, Entry.EntryType.DEBIT),
+                (to_user_id, amount, Entry.EntryType.CREDIT),
+            ],
+        )
+
+    @staticmethod
+    def credit(
+        *, user_id, amount: Decimal, idempotency_key: str, description: str = ""
+    ) -> Transaction:
+        """Money enters the system from outside (payment provider)."""
+        if amount <= 0:
+            raise BalanceTopUpError("Amount must be positive")
+
+        with db_transaction.atomic():
+            txn, _ = Transaction.objects.get_or_create(
+                idempotency_key=idempotency_key,
+                defaults={"description": description},
+            )
+
+        return MoneyService._run(txn, [(user_id, amount, Entry.EntryType.CREDIT)])
+
+    # -- internals ----------------------------------------------------------
+
+    @staticmethod
+    def _run(txn: Transaction, legs: list[tuple]) -> Transaction:
+        if txn.status == Transaction.Status.COMPLETED:
+            return txn  # idempotent replay: money already moved
+
+        try:
+            with db_transaction.atomic():
+                MoneyService._execute_legs(txn, legs)
+                txn.status = Transaction.Status.COMPLETED
+                txn.save(update_fields=["status"])
+        except Exception:
+            Transaction.objects.filter(
+                id=txn.id, status=Transaction.Status.PENDING
+            ).update(status=Transaction.Status.FAILED)
+            raise
+        return txn
+
+    @staticmethod
+    def _execute_legs(txn: Transaction, legs: list[tuple]) -> None:
+        user_ids = sorted({user_id for user_id, _, _ in legs})
+        locked = {
+            u.id: u for u in User.objects.select_for_update().filter(id__in=user_ids)
+        }
+        for user_id, amount, entry_type in legs:
+            user = locked[user_id]
+            if entry_type == Entry.EntryType.DEBIT:
+                if user.balance < amount:
+                    raise InsufficientBalanceError(
+                        f"User {user_id} has {user.balance}, needs {amount}"
+                    )
+                user.balance -= amount
+            else:
+                user.balance += amount
+            user.save(update_fields=["balance"])
+            Entry.objects.create(
+                transaction=txn,
+                user=user,
+                amount=amount,
+                type=entry_type,
+                balance_after=user.balance,
+            )
 
 
 class BalanceTopUpService:
     """
-    Service for work with users balance topups
+    Service for work with users balance topups.
 
     All methods are atomic and protected against re-processing (idempotent).
     """
@@ -50,10 +120,7 @@ class BalanceTopUpService:
         amount: Decimal,
         payment_method: str,
     ) -> BalanceTopUp:
-        """
-        Creates a replenishment request.
-        """
-
+        """Creates a replenishment request."""
         if amount <= 0:
             raise BalanceTopUpError("Amount must be positive")
 
@@ -63,7 +130,6 @@ class BalanceTopUpService:
             payment_method=payment_method,
             status=BalanceTopUp.Status.PENDING,
         )
-
         return topup
 
     @staticmethod
@@ -77,7 +143,6 @@ class BalanceTopUpService:
         Confirms the top-up and credits the funds.
         Called from the payment system's webhook.
         """
-
         topup = BalanceTopUp.objects.select_for_update().get(id=topup_id)
 
         if topup.status == BalanceTopUp.Status.COMPLETED:
@@ -92,9 +157,12 @@ class BalanceTopUpService:
                 f"TopUp {topup_id} has status {topup.status}, excepted PENDING"
             )
 
-        user = User.objects.select_for_update().get(user=topup.user)
-
-        BalanceService.credit(user, topup.amount)
+        MoneyService.credit(
+            user_id=topup.user_id,  # pyright: ignore[reportAttributeAccessIssue]
+            amount=topup.amount,
+            idempotency_key=f"topup-{topup_id}",
+            description=f"Balance top-up via {topup.payment_method}",
+        )
 
         topup.status = BalanceTopUp.Status.COMPLETED
         topup.external_transaction_id = external_id
@@ -106,19 +174,12 @@ class BalanceTopUpService:
                 "payment_provider_response",
             ]
         )
-
-        # еще можно было бы добавить модель истории измений баланса
-
         return topup
 
     @staticmethod
     @transaction.atomic
-    def fail_topup(
-        topup_id: UUID,
-        reason: str = "",
-    ) -> BalanceTopUp:
+    def fail_topup(topup_id: UUID, reason: str = "") -> BalanceTopUp:
         """Mark TopUp as failed."""
-
         topup = BalanceTopUp.objects.select_for_update().get(id=topup_id)
 
         if topup.status != BalanceTopUp.Status.PENDING:
@@ -135,7 +196,6 @@ class BalanceTopUpService:
     @transaction.atomic
     def cancel_topup(topup_id: UUID) -> BalanceTopUp:
         """Cancel topup. For example - timeout."""
-
         topup = BalanceTopUp.objects.select_for_update().get(id=topup_id)
 
         if topup.status != BalanceTopUp.Status.PENDING:
@@ -144,7 +204,5 @@ class BalanceTopUpService:
             )
 
         topup.status = BalanceTopUp.Status.CANCELLED
-        topup.save(
-            update_fields=["status"],
-        )
+        topup.save(update_fields=["status"])
         return topup

@@ -8,3 +8,9 @@ class TopUpAlreadyProcessedError(BalanceTopUpError):
 
 class TopUpInvalidStatusError(BalanceTopUpError):
     pass
+
+
+class InsufficientBalanceError(Exception):
+    """Buyer doesn't have enough balance."""
+
+    pass

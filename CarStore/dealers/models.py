@@ -189,6 +189,12 @@ class DealershipInventory(BaseModel):
         verbose_name_plural = "Cars in stock"
         unique_together = ["dealer_id", "car_model_id"]
         ordering = ["dealer_id", "car_model_id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["dealer_id", "car_model_id"],
+                name="unique_dealer_car_model_inventory",
+            )
+        ]
 
 
 class DealershipSupplier(BaseModel):

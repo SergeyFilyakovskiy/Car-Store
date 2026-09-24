@@ -39,8 +39,13 @@ urlpatterns = [
         name="purchase-history-detail",
     ),
     path(
-        "offers/accept/",
-        views.AcceptOfferView.as_view(),
-        name="accept-offer",
+        "offers/<uuid:offer_id>/accept/",
+        views.AcceptPurchaseOfferView.as_view(),
+        name="offer-accept",
+    ),
+    path(
+        "offers/<uuid:offer_id>/supply-accept/",
+        views.AcceptSupplyOfferView.as_view(),
+        name="offer-supply-accept",
     ),
 ]
