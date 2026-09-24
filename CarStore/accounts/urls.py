@@ -7,6 +7,7 @@ from .views import (
     BuyerProfileUpdateAPIView,
     CreateTopUpView,
     CustomTokenObtainPairView,
+    EntryListAPIView,
     RegisterAPIView,
     TopUpCancelView,
     TopUpStatusView,
@@ -30,4 +31,5 @@ urlpatterns = [
     path("topup/<int:id>/", TopUpStatusView.as_view(), name="topup-status"),
     path("topup/<int:id>/cancel/", TopUpCancelView.as_view(), name="topup-cancel"),
     path("webhooks/payment/", payment_webhook, name="payment-webhook"),
+    path("entries/", EntryListAPIView.as_view(), name="entry-list"),
 ]

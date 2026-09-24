@@ -22,7 +22,5 @@ class OutOfStockError(DealError):
     pass
 
 
-class PriceMismatchError(DealError):
-    """Offer max_price is less than inventory sale_price."""
-
+class OfferRoleError(DealError):
     pass

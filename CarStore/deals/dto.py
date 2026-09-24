@@ -1,14 +1,31 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
-from .models import Offer, PurchaseHistory, Transaction
+from accounts.models import Transaction
+from dealers.models import DealershipInventory
+
+from .models import Offer, PurchaseHistory
 
 
 @dataclass(frozen=True)
 class DealResult:
+    """Result of a buyer -> dealership deal."""
+
     offer: Offer
     transaction: Transaction
     purchase_history: PurchaseHistory
-    updated_buyer_balance: Decimal
-    updated_inventory_quantity: int
-    final_price: Decimal
+    unit_price: Decimal
+    total_price: Decimal
+    quantity: int
+
+
+@dataclass(frozen=True)
+class SupplyResult:
+    """Result of a dealership -> supplier stock purchase."""
+
+    offer: Offer
+    transaction: Transaction
+    inventory: DealershipInventory
+    unit_price: Decimal
+    total_price: Decimal
+    quantity: int

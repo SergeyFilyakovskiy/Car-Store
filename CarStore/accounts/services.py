@@ -157,15 +157,12 @@ class BalanceTopUpService:
                 f"TopUp {topup_id} has status {topup.status}, excepted PENDING"
             )
 
-        # user = User.objects.select_for_update().get(id=topup.user_id)  # pyright: ignore[reportAttributeAccessIssue]
-
-        # BalanceService.credit(
-        #     user=user,
-        #     amount=topup.amount,
-        #     entry_type=LedgerEntry.EntryType.TOP_UP,
-        #     description=f"Balance top-up via {topup.payment_method}",
-        #     topup=topup,
-        # )
+        MoneyService.credit(
+            user_id=topup.user_id,  # pyright: ignore[reportAttributeAccessIssue]
+            amount=topup.amount,
+            idempotency_key=f"topup-{topup_id}",
+            description=f"Balance top-up via {topup.payment_method}",
+        )
 
         topup.status = BalanceTopUp.Status.COMPLETED
         topup.external_transaction_id = external_id

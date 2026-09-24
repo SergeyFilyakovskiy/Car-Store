@@ -17,7 +17,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from accounts.models import BalanceTopUp, Buyer
+from accounts.models import BalanceTopUp, Buyer, Entry
 from accounts.permissions import IsOwnerProfile
 
 from .exceptions import (
@@ -29,6 +29,7 @@ from .serializers import (
     BuyerUpdateSerializer,
     CreateTopUpSerializer,
     CustomTokenObtainPairSerializer,
+    EntrySerializer,
     LoginSerializer,
     RegisterSerializer,
     TopUpStatusSerializer,
@@ -390,3 +391,15 @@ class TopUpCancelView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
 
         return Response({"status": "cancelled"}, status=status.HTTP_200_OK)
+
+
+class EntryListAPIView(generics.ListAPIView):
+    """List ledger entries of the current user."""
+
+    serializer_class = EntrySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
+        return Entry.objects.filter(user=self.request.user).select_related(
+            "transaction"
+        )

@@ -4,27 +4,31 @@ Views for the deals application.
 Provides endpoints for buyer offers, transactions, and purchase history.
 """
 
-from accounts.permissions import IsBuyer, IsDealership
+from accounts.exceptions import InsufficientBalanceError
+from accounts.models import Transaction
+from accounts.permissions import IsBuyer, IsDealership, IsSupplier
 from django.db import models
+from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from CarStore.dealers.models import Dealership
+from CarStore.suppliers.models import Supplier
 from deals.exceptions import (
-    InsufficientBalanceError,
     OfferAlreadyProcessedError,
     OfferExpiredError,
+    OfferRoleError,
     OutOfStockError,
 )
-from deals.models import Offer, PurchaseHistory, Transaction
+from deals.models import Offer, PurchaseHistory
 from deals.serializers import (
-    AcceptOfferSerializer,
     OfferSerializer,
     PurchaseHistorySerializer,
     TransactionSerializer,
 )
-from deals.services import accept_offer
+from deals.services import accept_purchase_offer, accept_supply_offer
 
 
 class IsOfferOwner(permissions.BasePermission):
@@ -186,43 +190,71 @@ class PurchaseHistoryDetailAPIView(generics.RetrieveAPIView):
 # ==============================================================================
 
 
-class AcceptOfferView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsDealership]
+class BaseAcceptOfferView(APIView):
+    """
+    Shared pipeline: fetch offer -> resolve partner -> run service -> map errors.
+    Subclasses only define permissions, partner lookup and the service to call.
+    """
 
-    def post(self, request: Request):
-        serialazer = AcceptOfferSerializer(data=request.data)
-        serialazer.is_valid(raise_exception=True)
+    accept_fn = None  # set in subclasses
 
-        try:
-            offer = Offer.objects.get(id=serialazer.validated_data["offer_id"])  # pyright: ignore[reportOptionalSubscript, reportIndexIssue]
-            dealership = request.user.dealership_profile
-        except Offer.DoesNotExist:
+    def get_partner(self, request: Request):
+        raise NotImplementedError
+
+    def post(self, request: Request, offer_id: str) -> Response:
+        offer = get_object_or_404(Offer, id=offer_id)
+
+        partner = self.get_partner(request)
+        if partner is None:
             return Response(
-                {"error": "Offer not found"}, status=status.HTTP_404_NOT_FOUND
-            )
-        except AttributeError:
-            return Response(
-                {"error": "User is not a dealership"},
+                {"error": "No profile found for your role"},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
         try:
-            result = accept_offer(offer=offer, dealership=dealership)
+            result = self.accept_fn(offer, partner)  # pyright: ignore[reportOptionalCall]
         except OfferAlreadyProcessedError as e:
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
         except OfferExpiredError as e:
             return Response({"error": str(e)}, status=status.HTTP_410_GONE)
+        except OfferRoleError as e:
+            return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
         except InsufficientBalanceError as e:
             return Response({"error": str(e)}, status=status.HTTP_402_PAYMENT_REQUIRED)
         except OutOfStockError as e:
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
 
+        # Own balance after the deal (never expose the counterparty's balance!)
+        request.user.refresh_from_db()
+
         return Response(
             {
-                "offer_id": result.offer.id,
-                "final_price": str(result.final_price),
-                "new_balance": str(result.updated_buyer_balance),
+                "offer_id": str(result.offer.id),
                 "transaction_id": str(result.transaction.id),
+                "unit_price": str(result.unit_price),
+                "total_price": str(result.total_price),
+                "quantity": result.quantity,
+                "new_balance": str(request.user.balance),
             },
             status=status.HTTP_200_OK,
         )
+
+
+class AcceptPurchaseOfferView(BaseAcceptOfferView):
+    """Dealership accepts a buyer's offer."""
+
+    permission_classes = [permissions.IsAuthenticated, IsDealership]
+    accept_fn = staticmethod(accept_purchase_offer)
+
+    def get_partner(self, request: Request):
+        return Dealership.objects.filter(account_id=request.user).first()
+
+
+class AcceptSupplyOfferView(BaseAcceptOfferView):
+    """Supplier accepts a dealership's purchase offer."""
+
+    permission_classes = [permissions.IsAuthenticated, IsSupplier]
+    accept_fn = staticmethod(accept_supply_offer)
+
+    def get_partner(self, request: Request):
+        return Supplier.objects.filter(account_id=request.user).first()

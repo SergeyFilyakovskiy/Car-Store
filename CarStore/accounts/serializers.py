@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from accounts.models import BalanceTopUp, Buyer
+from accounts.models import BalanceTopUp, Buyer, Entry
 
 User = get_user_model()
 
@@ -142,4 +142,23 @@ class TopUpStatusSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+        read_only_fields = fields
+
+
+class EntrySerializer(serializers.ModelSerializer):
+    transaction_status = serializers.CharField(
+        source="transaction.status", read_only=True
+    )
+
+    class Meta:
+        model = Entry
+        fields = (
+            "id",
+            "transaction",
+            "transaction_status",
+            "amount",
+            "type",
+            "balance_after",
+            "created_at",
+        )
         read_only_fields = fields
