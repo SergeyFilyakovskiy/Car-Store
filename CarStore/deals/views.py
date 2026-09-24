@@ -7,15 +7,15 @@ Provides endpoints for buyer offers, transactions, and purchase history.
 from accounts.exceptions import InsufficientBalanceError
 from accounts.models import Transaction
 from accounts.permissions import IsBuyer, IsDealership, IsSupplier
+from dealers.models import Dealership
 from django.db import models
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from suppliers.models import Supplier
 
-from CarStore.dealers.models import Dealership
-from CarStore.suppliers.models import Supplier
 from deals.exceptions import (
     OfferAlreadyProcessedError,
     OfferExpiredError,

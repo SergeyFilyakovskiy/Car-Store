@@ -1,7 +1,8 @@
+from accounts.models import Transaction
 from analytics.models import SalesStatistics
 from rest_framework import serializers
 
-from deals.models import Offer, PurchaseHistory, Transaction
+from deals.models import Offer, PurchaseHistory
 
 
 class OfferSerializer(serializers.ModelSerializer):
