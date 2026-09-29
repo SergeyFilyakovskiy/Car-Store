@@ -111,3 +111,87 @@ class PurchaseHistory(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.buyer} - {self.car_model} ({self.price_paid} USD)"
+
+
+class OfferLog(BaseModel):
+    """Audit of the processing of an incoming buyer offer."""
+
+    offer = models.ForeignKey(
+        "deals.Offer",
+        on_delete=models.CASCADE,
+        related_name="logs",
+    )
+    run_id = models.UUIDField(db_index=True)
+    step = models.CharField(max_length=64)
+    status = models.CharField(max_length=32)
+    reason = models.CharField(max_length=255, blank=True, default="")
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:  # type: ignore
+        verbose_name = "Offer log"
+        verbose_name_plural = "Offer logs"
+        indexes = [
+            models.Index(fields=["offer", "created_at"]),
+            models.Index(fields=["run_id", "created_at"]),
+        ]
+
+
+class SupplyHistory(BaseModel):
+    """Purchases made by the salon from the supplier (salon → supplier).
+
+    Analogous to PurchaseHistory, but for the salon-to-supplier direction.
+    Used to count the number of purchases when calculating
+    loyalty (SupplierLoyaltyDiscount.min_purchases).
+    """
+
+    dealership = models.ForeignKey(
+        "dealers.Dealership",
+        on_delete=models.CASCADE,
+        related_name="supply_history",
+        verbose_name="Dealership",
+    )
+    supplier = models.ForeignKey(
+        "suppliers.Supplier",
+        on_delete=models.CASCADE,
+        related_name="supply_history",
+        verbose_name="Supplier",
+    )
+    car_model = models.ForeignKey(
+        "cars.CarModel",
+        on_delete=models.CASCADE,
+        related_name="supply_history",
+        verbose_name="Car model",
+    )
+    offer = models.OneToOneField(
+        "deals.Offer",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="supply_history",
+        verbose_name="Offer",
+    )
+    transaction = models.OneToOneField(
+        "accounts.Transaction",
+        on_delete=models.PROTECT,
+        related_name="supply_history",
+        verbose_name="Transaction",
+    )
+    quantity = models.PositiveIntegerField(verbose_name="Quantity")
+    unit_price = models.DecimalField(
+        max_digits=12, decimal_places=2, verbose_name="Unit price"
+    )
+    total_price = models.DecimalField(
+        max_digits=12, decimal_places=2, verbose_name="Total price"
+    )
+    purchased_at = models.DateTimeField(auto_now_add=True, verbose_name="Purchased at")
+
+    class Meta:  # type: ignore
+        verbose_name = "Supply history"
+        verbose_name_plural = "Supply histories"
+        ordering = ["-purchased_at"]
+        indexes = [
+            models.Index(fields=["dealership", "supplier"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.dealership} ← {self.supplier} ({self.total_price} USD)"
