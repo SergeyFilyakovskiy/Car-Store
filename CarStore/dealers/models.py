@@ -251,6 +251,33 @@ class DealershipSupplier(BaseModel):
     best_price = models.DecimalField(
         max_digits=12, decimal_places=2, verbose_name="Best price (USD)"
     )
+    is_best = models.BooleanField(
+        default=False,
+        verbose_name="Is best supplier for this model",
+    )
+    best_price_updated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Best price updated at",
+    )
+    best_price_reason = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name="Reason of best price change",
+    )
+    future_best_price = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Projected best price (future promos)",
+    )
+    future_best_price_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Date when future best price becomes active",
+    )
 
     class Meta:  # type: ignore
         verbose_name = "Best supplier for dealership"
@@ -401,3 +428,139 @@ class DealershipSale(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.dealership.name} → {self.buyer} ({self.sale_price} USD)"
+
+
+class PurchasePlan(BaseModel):
+    """Idempotent procurement plan.
+
+    Ensures that re-running the task within the same time slot
+    does not create a second procurement order. Uniqueness: showroom + model + aisle type + slot.
+    """
+
+    class PassType(models.TextChoices):
+        PREFERRED = "preferred", "Preferred cars"
+        DEMAND = "demand", "Demand based"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        COMPLETED = "completed", "Completed"
+        REJECTED = "rejected", "Rejected"
+        FAILED = "failed", "Failed"
+
+    dealership = models.ForeignKey(
+        "dealers.Dealership",
+        on_delete=models.CASCADE,
+        related_name="purchase_plans",
+        verbose_name="Dealership",
+    )
+    car_model = models.ForeignKey(
+        "cars.CarModel",
+        on_delete=models.CASCADE,
+        related_name="purchase_plans",
+        verbose_name="Car model",
+    )
+    supplier = models.ForeignKey(
+        "suppliers.Supplier",
+        on_delete=models.CASCADE,
+        related_name="purchase_plans",
+        verbose_name="Supplier",
+    )
+    pass_type = models.CharField(
+        max_length=16,
+        choices=PassType.choices,
+        verbose_name="Pass type",
+    )
+    slot = models.DateTimeField(verbose_name="Time slot")
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.PENDING,
+        verbose_name="Status",
+    )
+    quantity = models.PositiveIntegerField(verbose_name="Quantity")
+    unit_price = models.DecimalField(
+        max_digits=12, decimal_places=2, verbose_name="Unit price"
+    )
+    idempotency_key = models.CharField(
+        max_length=255, unique=True, verbose_name="Idempotency key"
+    )
+    reason = models.CharField(max_length=255, blank=True, default="")
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:  # type: ignore
+        verbose_name = "Purchase plan"
+        verbose_name_plural = "Purchase plans"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["dealership", "car_model", "pass_type", "slot"],
+                name="unique_purchase_plan_per_slot",
+            )
+        ]
+
+
+class PurchaseLog(BaseModel):
+    """Audit of supplier purchases: reasons for purchase / reasons for rejection."""
+
+    run_id = models.UUIDField(db_index=True)
+    dealership = models.ForeignKey(
+        "dealers.Dealership",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="purchase_logs",
+    )
+    car_model = models.ForeignKey(
+        "cars.CarModel",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="purchase_logs",
+    )
+    supplier = models.ForeignKey(
+        "suppliers.Supplier",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="purchase_logs",
+    )
+    action = models.CharField(max_length=64)
+    reason = models.CharField(max_length=255)
+    quantity = models.PositiveIntegerField(null=True, blank=True)
+    unit_price = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:  # type: ignore
+        verbose_name = "Purchase log"
+        verbose_name_plural = "Purchase logs"
+        indexes = [
+            models.Index(fields=["run_id", "created_at"]),
+            models.Index(fields=["dealership", "car_model", "created_at"]),
+        ]
+
+
+class SupplierPriceLog(BaseModel):
+    """Audit of `best_price` changes for DealershipSupplier."""
+
+    run_id = models.UUIDField(db_index=True)
+    dealership_supplier = models.ForeignKey(
+        "dealers.DealershipSupplier",
+        on_delete=models.CASCADE,
+        related_name="price_logs",
+    )
+    old_best_price = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    new_best_price = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    reason = models.CharField(max_length=255)
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:  # type: ignore
+        verbose_name = "Supplier price log"
+        verbose_name_plural = "Supplier price logs"
+        indexes = [
+            models.Index(fields=["run_id", "created_at"]),
+        ]
