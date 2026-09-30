@@ -206,4 +206,20 @@ CELERY_BEAT_SCHEDULE = {
         "task": "dealers.tasks.expire_offers",
         "schedule": crontab(minute="*/10"),
     },
+    "actualize-supplier-prices-hourly": {
+        "task": "dealers.tasks.actualize_supplier_best_prices",
+        "schedule": crontab(minute=5),
+        "options": {
+            "queue": "default",
+            "expires": 3300,
+        },
+    },
+    "purchase-from-suppliers-every-10-min": {
+        "task": "dealers.tasks.purchase_from_suppliers",
+        "schedule": crontab(minute="*/10"),
+        "options": {
+            "queue": "default",
+            "expires": 540,
+        },
+    },
 }
