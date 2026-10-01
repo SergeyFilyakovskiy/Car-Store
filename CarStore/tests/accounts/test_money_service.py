@@ -171,7 +171,7 @@ class TestBalanceTopUpService:
             amount=Decimal("100.00"),
             payment_method="CARD",
         )
-        initial_balance = buyer_user.balance
+        initial_balance = Decimal(str(buyer_user.balance))
 
         confirmed = BalanceTopUpService.confirm_topup(
             topup_id=topup.id,
@@ -189,7 +189,7 @@ class TestBalanceTopUpService:
             amount=Decimal("100.00"),
             payment_method="CARD",
         )
-        initial_balance = buyer_user.balance
+        initial_balance = Decimal(str(buyer_user.balance))
 
         BalanceTopUpService.confirm_topup(topup_id=topup.id, external_id="ext-123")
         BalanceTopUpService.confirm_topup(topup_id=topup.id, external_id="ext-123")

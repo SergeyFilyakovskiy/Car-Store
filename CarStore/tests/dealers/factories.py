@@ -39,7 +39,6 @@ class DealershipFactory(factory.django.DjangoModelFactory):
     name = Sequence(lambda n: f"Dealership_{n}")
     country = Faker("country_code")
     address = LazyFunction(lambda: Point(0, 0))
-    balance = Faker("pydecimal", left_digits=6, right_digits=2, positive=True)
     account_id = SubFactory(UserFactory, role="dealership")
 
 

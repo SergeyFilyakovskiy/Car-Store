@@ -35,7 +35,7 @@ class IsOfferOwner(permissions.BasePermission):
     """
 
     def has_object_permission(self, request, view, obj):
-        return obj.buyer.user == request.user
+        return obj.creator == request.user
 
 
 class IsPurchaseHistoryOwner(permissions.BasePermission):
@@ -67,13 +67,10 @@ class OfferListCreateAPIView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated, IsBuyer]
 
     def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
-        return Offer.objects.filter(buyer__user=self.request.user)
+        return Offer.objects.filter(creator=self.request.user)
 
     def perform_create(self, serializer):
-        from accounts.models import Buyer
-
-        buyer_profile = Buyer.objects.get(user=self.request.user)
-        serializer.save(buyer=buyer_profile)
+        serializer.save(creator=self.request.user)
 
 
 class OfferDetailAPIView(generics.RetrieveUpdateAPIView):
@@ -86,7 +83,7 @@ class OfferDetailAPIView(generics.RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated, IsOfferOwner]
 
     def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
-        return Offer.objects.filter(buyer__user=self.request.user)
+        return Offer.objects.filter(creator=self.request.user)
 
 
 # ==============================================================================

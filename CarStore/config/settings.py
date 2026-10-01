@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "drf_spectacular_sidecar",
     "django_celery_beat",
     "django_celery_results",
+    "rest_framework_simplejwt.token_blacklist",
 ]
 
 REST_FRAMEWORK = {

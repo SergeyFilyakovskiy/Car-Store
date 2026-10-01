@@ -7,7 +7,6 @@ from core.otp_utils import (
 )
 from django.contrib.auth import authenticate, get_user_model
 from django.core.cache import cache
-from django.db import models
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, permissions, status
@@ -418,11 +417,7 @@ class TransactionListAPIView(generics.ListAPIView):
 
     def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
         user = self.request.user
-        return Transaction.objects.filter(
-            models.Q(buyer__user=user)
-            | models.Q(dealership__account_id=user)
-            | models.Q(supplier__account_id=user)
-        )
+        return Transaction.objects.filter(entries__user=user).distinct()
 
 
 class TransactionDetailAPIView(generics.RetrieveAPIView):

@@ -252,7 +252,7 @@ def accept_supply_offer(offer: Offer, supplier: Supplier) -> SupplyResult:
         # the dealership will adjust it later
         inventory = DealershipInventory.objects.create(
             dealer_id=dealership,
-            car_model_id=offer.car_model_id,  # pyright: ignore[reportAttributeAccessIssue]
+            car_model_id=offer.car_model,  # pyright: ignore[reportAttributeAccessIssue]
             quantity=offer.quantity,
             purchase_price=unit_price,
             sale_price=unit_price,
