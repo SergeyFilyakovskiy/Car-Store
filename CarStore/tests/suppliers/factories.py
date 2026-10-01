@@ -39,8 +39,8 @@ class SupplierCarFactory(factory.django.DjangoModelFactory):
     class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = SupplierCar
 
-    supplier_id = SubFactory(SupplierFactory)
-    car_model_id = SubFactory(CarModelFactory)
+    supplier = SubFactory(SupplierFactory)
+    car_model = SubFactory(CarModelFactory)
     base_price = Faker("pydecimal", left_digits=5, right_digits=2, positive=True)
     stock_quantity = Faker("random_int", min=0, max=100)
 
@@ -51,9 +51,8 @@ class SupplierLoyaltyDiscountFactory(factory.django.DjangoModelFactory):
     class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = SupplierLoyaltyDiscount
 
-    supplier_id = SubFactory(SupplierFactory)
-    # Requires dealers.factories.DealershipFactory
-    dealer_id = SubFactory("dealers.factories.DealershipFactory")
+    supplier = SubFactory(SupplierFactory)
+    dealer = SubFactory("dealers.factories.DealershipFactory")
     discount_pct = Faker("pydecimal", left_digits=2, right_digits=2, positive=True)
     min_purchases = Faker("random_int", min=1, max=50)
 

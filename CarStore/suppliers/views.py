@@ -91,10 +91,10 @@ class SupplierCarListCreateAPIView(generics.ListCreateAPIView):
         return SupplierCar.objects.filter(supplier__account_id=self.request.user)
 
     def perform_create(self, serializer):
-        supplier= serializer.validated_data.get("supplier")
+        supplier = serializer.validated_data.get("supplier")
         if supplier.account_id != self.request.user:
             raise serializers.ValidationError(
-                {"supplier_id": "You do not own this supplier."}
+                {"supplier": "You do not own this supplier."}
             )
         serializer.save()
 
@@ -106,7 +106,7 @@ class SupplierCarDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated, IsSupplierOwner]
 
     def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
-        return SupplierCar.objects.filter(supplier_id__account_id=self.request.user)
+        return SupplierCar.objects.filter(supplier__account_id=self.request.user)
 
 
 # ==============================================================================
@@ -126,10 +126,10 @@ class SupplierLoyaltyDiscountListCreateAPIView(generics.ListCreateAPIView):
         )
 
     def perform_create(self, serializer):
-        supplier_id = serializer.validated_data.get("supplier_id")
-        if supplier_id.account_id != self.request.user:
+        supplier = serializer.validated_data.get("supplier")
+        if supplier.account_id != self.request.user:
             raise serializers.ValidationError(
-                {"supplier_id": "You do not own this supplier."}
+                {"supplier": "You do not own this supplier."}
             )
         serializer.save()
 

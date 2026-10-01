@@ -3,57 +3,104 @@ Tests for SupplierPromo API endpoints.
 """
 
 from datetime import date, timedelta
-from typing import cast
+from typing import Any
 
 import pytest
 from django.urls import reverse
-from rest_framework.response import Response
 from suppliers.models import SupplierPromo
-from tests.accounts.conftest import supplier_user
-from tests.dealers.conftest import other_dealership_user, other_dealership
+
+LIST_CREATE_URL = "suppliers:supplier-promo-list-create"
+DETAIL_URL = "suppliers:supplier-promo-detail"
+
+
+def _data(response) -> dict[str, Any]:
+    """Typed accessor for response payload."""
+    return response.data  # type: ignore[no-any-return]
 
 
 @pytest.mark.django_db
 @pytest.mark.fast
-class TestSupplierPromoCRUD:
-    def test_create_promo(self, api_client, supplier_user, supplier):
-        """Supplier owner can create a promotion."""
-        api_client.force_authenticate(user=supplier_user)
+class TestSupplierPromoListCreate:
+    """Tests for GET/POST /suppliers/promos/."""
+
+    def test_create_promo_success(self, supplier_api_client, supplier):
+        """The owner can create a promotion for their supplier."""
+        today = date.today()
         payload = {
             "supplier": str(supplier.id),
             "name": "Summer Sale",
             "description": "20% off",
             "discount_pct": "20.00",
-            "start_date": date.today().isoformat(),
-            "end_date": (date.today() + timedelta(days=30)).isoformat(),
+            "start_date": today.isoformat(),
+            "end_date": (today + timedelta(days=30)).isoformat(),
         }
 
-        response = cast(
-            Response,
-            api_client.post(
-                reverse("suppliers:supplier-promo-list-create"), payload, format="json"
-            ),
-        )
+        response = supplier_api_client.post(reverse(LIST_CREATE_URL), payload, format="json")
 
-        assert response.status_code == 201, response.data
-        assert SupplierPromo.objects.filter(name="Summer Sale").exists()
+        assert response.status_code == 201, _data(response)
+        assert SupplierPromo.objects.filter(supplier=supplier, name="Summer Sale").exists()
 
-    def test_list_promos_isolation(
-        self, api_client, supplier_user, supplier, other_dealership_user
+    def test_create_promo_wrong_supplier(
+        self, supplier_api_client, other_supplier
     ):
-        """Supplier only sees their own promotions."""
+        """The owner cannot create a promotion for another user's supplier."""
+        today = date.today()
+        payload = {
+            "supplier": str(other_supplier.id),
+            "name": "Hack Sale",
+            "discount_pct": "99.00",
+            "start_date": today.isoformat(),
+            "end_date": (today + timedelta(days=30)).isoformat(),
+        }
+
+        response = supplier_api_client.post(reverse(LIST_CREATE_URL), payload, format="json")
+
+        assert response.status_code == 400
+        assert "supplier" in _data(response)
+
+    def test_list_promos_isolated(
+        self, supplier_api_client, supplier_promo, other_supplier
+    ):
+        """The owner sees only their own supplier's promotions."""
         SupplierPromo.objects.create(
-            supplier=supplier,
-            name="Test Promo",
-            discount_pct=10.00,
+            supplier=other_supplier,
+            name="Other Promo",
+            discount_pct="5.00",
             start_date=date.today(),
             end_date=date.today() + timedelta(days=30),
         )
 
-        api_client.force_authenticate(user=supplier_user)
-        response = cast(
-            Response, api_client.get(reverse("suppliers:supplier-promo-list-create"))
+        response = supplier_api_client.get(reverse(LIST_CREATE_URL))
+
+        assert response.status_code == 200
+        assert len(_data(response)) == 1
+        assert _data(response)[0]["supplier"] == str(supplier_promo.supplier.id) # pyright: ignore[reportArgumentType]
+
+
+@pytest.mark.django_db
+@pytest.mark.fast
+class TestSupplierPromoDetail:
+    """Tests for GET/PUT/PATCH/DELETE /suppliers/promos/<pk>/."""
+
+    def test_update_promo(self, supplier_api_client, supplier_promo):
+        """The owner can update a promotion."""
+        payload = {"name": "Updated Promo"}
+
+        response = supplier_api_client.patch(
+            reverse(DETAIL_URL, kwargs={"pk": supplier_promo.id}),
+            payload,
+            format="json",
         )
 
         assert response.status_code == 200
-        assert len(response.data) == 1  # pyright: ignore[reportArgumentType]
+        supplier_promo.refresh_from_db()
+        assert supplier_promo.name == "Updated Promo"
+
+    def test_delete_promo_non_owner(self, other_supplier_api_client, supplier_promo):
+        """A non-owner cannot delete a promotion."""
+        response = other_supplier_api_client.delete(
+            reverse(DETAIL_URL, kwargs={"pk": supplier_promo.id})
+        )
+
+        assert response.status_code == 404
+        assert SupplierPromo.objects.filter(id=supplier_promo.id).exists()
