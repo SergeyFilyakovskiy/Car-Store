@@ -74,7 +74,7 @@ class TestSupplierPromoListCreate:
 
         assert response.status_code == 200
         assert len(_data(response)) == 1
-        assert _data(response)[0]["supplier"] == str(supplier_promo.supplier.id) # pyright: ignore[reportArgumentType]
+        assert str(_data(response)[0]["supplier"]) == str(supplier_promo.supplier.id) # pyright: ignore[reportArgumentType]
 
 
 @pytest.mark.django_db

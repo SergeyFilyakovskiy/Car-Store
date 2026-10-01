@@ -57,7 +57,7 @@ class TestAcceptPurchaseOfferAPI:
     """Tests for POST /deals/offers/<offer_id>/accept/."""
 
     def test_accept_success(
-        self, dealership_api_client, buyer_user, dealership, buyer_offer, car_model
+        self, dealership_api_client, buyer_user, dealership, buyer_offer, car_model, dealership_user
     ):
         """A dealership owner can accept a buyer's offer."""
         DealershipInventory.objects.create(
@@ -101,7 +101,7 @@ class TestAcceptPurchaseOfferAPI:
         assert response.status_code == 401
 
     def test_accept_already_completed_returns_409(
-        self, dealership_api_client, buyer_user, dealership, buyer_offer, car_model
+        self, dealership_api_client, buyer_user, dealership, buyer_offer, car_model, dealership_user
     ):
         """Accepting an already-completed offer returns 409."""
         DealershipInventory.objects.create(

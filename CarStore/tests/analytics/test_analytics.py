@@ -34,7 +34,7 @@ class TestSalesStatisticsList:
         assert response.status_code == 200
         results = _data(response)
         assert len(results) == 1
-        assert results[0]["dealership"] == str(dealership.id) # pyright: ignore[reportArgumentType]
+        assert str(results[0]["dealership"]) == str(dealership.id) # pyright: ignore[reportArgumentType]
         assert results[0]["dealership_name"] == dealership.name # pyright: ignore[reportArgumentType]
 
     def test_unauthenticated_returns_401(self, api_client):

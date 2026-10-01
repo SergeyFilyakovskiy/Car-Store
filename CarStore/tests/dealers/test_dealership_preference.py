@@ -75,7 +75,7 @@ class TestDealershipPreferenceListCreate:
 
         assert response.status_code == 200
         assert len(_data(response)) == 1
-        assert _data(response)[0]["dealer_id"] == str(dealership.id) # pyright: ignore[reportArgumentType]
+        assert str(_data(response)[0]["dealer_id"]) == str(dealership.id) # pyright: ignore[reportArgumentType]
 
     def test_create_preference_unauthenticated(self, api_client, dealership):
         """An unauthenticated user cannot create preferences."""

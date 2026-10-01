@@ -35,7 +35,7 @@ class TestOfferListCreate:
         response = buyer_api_client.post(reverse(LIST_CREATE_URL), payload, format="json")
 
         assert response.status_code == 201, _data(response)
-        assert _data(response)["creator"] == str(buyer_user.id)
+        assert str(_data(response)["creator"]) == str(buyer_user.id)
         assert _data(response)["status"] == "PENDING"
 
     def test_create_offer_wrong_role(self, dealership_api_client, car_model):
@@ -86,7 +86,7 @@ class TestOfferListCreate:
 
         assert response.status_code == 200
         assert len(_data(response)) == 1
-        assert _data(response)[0]["creator"] == str(offer.creator.id) # pyright: ignore[reportArgumentType]
+        assert str(_data(response)[0]["creator"]) == str(offer.creator.id) # pyright: ignore[reportArgumentType]
 
 
 @pytest.mark.django_db

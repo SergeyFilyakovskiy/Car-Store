@@ -18,7 +18,7 @@ from deals.services import accept_purchase_offer, accept_supply_offer
 from datetime import timedelta
 from django.utils import timezone
 from suppliers.models import SupplierCar
-
+from tests.dealers.conftest import dealership
 
 # =============================================================================
 # Fixtures
@@ -164,6 +164,8 @@ class TestAcceptPurchaseOffer:
         buyer_user.save(update_fields=["balance"])
 
         accept_purchase_offer(buyer_offer, dealership)
+
+        buyer_user.refresh_from_db()
         balance_after_first = buyer_user.balance
 
         with pytest.raises(OfferAlreadyProcessedError):
@@ -236,7 +238,7 @@ class TestAcceptSupplyOffer:
     """Tests for the dealership -> supplier deal service."""
 
     def test_accept_success_completes_offer(
-        self, dealership_user, supplier, dealership_offer, stocked_supplier_car
+        self, dealership_user, supplier, dealership_offer, stocked_supplier_car, dealership
     ):
         """A successful supply acceptance completes the offer."""
         dealership_user.balance = Decimal("100000.00")
@@ -250,7 +252,7 @@ class TestAcceptSupplyOffer:
         assert result.total_price == Decimal("35000.00")
 
     def test_accept_success_decrements_supplier_stock(
-        self, dealership_user, supplier, dealership_offer, stocked_supplier_car
+        self, dealership_user, supplier, dealership_offer, stocked_supplier_car, dealership
     ):
         """Supplier stock is decremented after a successful deal."""
         dealership_user.balance = Decimal("100000.00")
@@ -275,7 +277,7 @@ class TestAcceptSupplyOffer:
         assert result.inventory.quantity == 1
 
     def test_accept_success_moves_money(
-        self, dealership_user, supplier_user, supplier, dealership_offer, stocked_supplier_car
+        self, dealership_user, supplier_user, supplier, dealership_offer, stocked_supplier_car, dealership
     ):
         """Money moves from dealership owner to supplier owner."""
         dealership_user.balance = Decimal("100000.00")
@@ -305,7 +307,7 @@ class TestAcceptSupplyOffer:
         assert history.total_price == result.total_price
 
     def test_accept_already_processed_raises(
-        self, dealership_user, supplier, dealership_offer, stocked_supplier_car
+        self, dealership_user, supplier, dealership_offer, stocked_supplier_car, dealership
     ):
         """Accepting a non-PENDING offer raises OfferAlreadyProcessedError."""
         dealership_user.balance = Decimal("100000.00")
@@ -317,14 +319,14 @@ class TestAcceptSupplyOffer:
             accept_supply_offer(dealership_offer, supplier)
 
     def test_accept_wrong_role_raises(
-        self, buyer_user, supplier, buyer_offer, stocked_supplier_car
+        self, buyer_user, supplier, buyer_offer, stocked_supplier_car, dealership
     ):
         """An offer created by a buyer cannot be accepted as a supply deal."""
         with pytest.raises(OfferRoleError):
             accept_supply_offer(buyer_offer, supplier)
 
     def test_accept_out_of_stock_raises(
-        self, dealership_user, supplier, car_model, dealership_offer
+        self, dealership_user, supplier, car_model, dealership_offer, dealership
     ):
         """Accepting with insufficient supplier stock raises OutOfStockError."""
         SupplierCar.objects.create(

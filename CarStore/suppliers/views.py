@@ -25,25 +25,19 @@ from suppliers.serializers import (
 
 
 class IsSupplierOwner(permissions.BasePermission):
-    """
-    Custom permission to only allow owners of a supplier to access or modify
-    the supplier and its related objects. Prevents IDOR vulnerabilities.
-    """
-
     def has_object_permission(self, request, view, obj):  # pyright: ignore[reportIncompatibleMethodOverride]
         # 1. Supplier model (direct ownership)
         if hasattr(obj, "account_id") and obj.account_id is not None:
             return obj.account_id == request.user
 
-        # 2. Models with 'supplier_id' (SupplierCar, SupplierLoyaltyDiscount)
-        if hasattr(obj, "supplier_id") and obj.supplier_id is not None:
-            return obj.supplier.account_id == request.user
-
-        # 3. Models with 'supplier' (SupplierPromo)
+        # 2. Models with 'supplier' FK (SupplierCar, SupplierLoyaltyDiscount, SupplierPromo)
         if hasattr(obj, "supplier") and obj.supplier is not None:
-            return obj.supplier.account_id == request.user
+            try:
+                return obj.supplier.account_id == request.user
+            except AttributeError:
+                pass
 
-        # 4. Models with 'promo' (SupplierPromoModel)
+        # 3. Models with 'promo' (SupplierPromoModel)
         if hasattr(obj, "promo") and obj.promo is not None:
             return obj.promo.supplier.account_id == request.user
 

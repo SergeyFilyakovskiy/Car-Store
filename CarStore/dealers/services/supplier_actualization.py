@@ -70,7 +70,7 @@ class SupplierActualizationService:
                 "dealership", "supplier", "car_model"
             )
             .filter(is_active=True)
-            .order_by("dealership_id", "car_model_id", "id")
+            .order_by("dealer_id", "car_model_id", "id")
         )
 
         for link in queryset.iterator(chunk_size=500):
@@ -145,7 +145,7 @@ class SupplierActualizationService:
 
         queryset = DealershipSupplier.objects.filter(
             is_active=True, best_price__isnull=False
-        ).order_by("dealership_id", "car_model_id", "best_price", "id")
+        ).order_by("dealer_id", "car_model_id", "best_price", "id")
 
         for link in queryset.iterator(chunk_size=500):
             key = (link.dealer_id_id, link.car_model_id_id)  # pyright: ignore[reportAttributeAccessIssue]

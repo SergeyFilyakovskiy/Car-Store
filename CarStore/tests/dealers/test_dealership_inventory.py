@@ -74,7 +74,7 @@ class TestDealershipInventoryListCreate:
 
         assert response.status_code == 200
         assert len(_data(response)) == 1
-        assert _data(response)[0]["dealer_id"] == str(dealership_inventory.dealer_id.id) # pyright: ignore[reportArgumentType]
+        assert str(_data(response)[0]["dealer_id"]) == str(dealership_inventory.dealer_id.id) # pyright: ignore[reportArgumentType]
 
     def test_create_inventory_unauthenticated(self, api_client, dealership, car_model):
         """An unauthenticated user cannot create inventory."""

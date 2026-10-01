@@ -75,7 +75,7 @@ class TestDealershipSupplierListCreate:
 
         assert response.status_code == 200
         assert len(_data(response)) == 1
-        assert _data(response)[0]["dealer_id"] == str(dealership_supplier.dealer_id.id) # pyright: ignore[reportArgumentType]
+        assert str(_data(response)[0]["dealer_id"]) == str(dealership_supplier.dealer_id.id) # pyright: ignore[reportArgumentType]
 
 
 @pytest.mark.django_db

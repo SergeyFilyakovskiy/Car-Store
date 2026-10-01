@@ -1,6 +1,3 @@
-"""
-Factory Boy фабрики для моделей accounts.
-"""
 
 import factory
 from accounts.models import (
@@ -25,7 +22,6 @@ class UserFactory(factory.django.DjangoModelFactory):
 
     class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = User
-        skip_postgeneration_save = True
 
     username = Sequence(lambda n: f"user_{n}")
     email = LazyAttribute(lambda obj: f"{obj.username}@example.com")

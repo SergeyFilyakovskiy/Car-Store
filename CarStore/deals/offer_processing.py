@@ -261,24 +261,12 @@ class OfferProcessingService:
 
         self._log(offer, run_id, "rejected", "rejected", reason)
 
-    def _log(
-        self,
-        offer: Offer | Any,
-        run_id: uuid.UUID,
-        step: str,
-        status: str,
-        reason: str,
-        payload: dict[str, Any] | None = None,
-    ) -> None:
-        """Creates an entry in OfferLog."""
-        if isinstance(offer, Offer):
-            offer_id = offer.id
-        else:
-            offer_id = offer
-
+    def _log(self, offer, run_id, step, status, reason, payload=None):
+        if not isinstance(offer, Offer):
+            return
         try:
             OfferLog.objects.create(
-                offer_id=offer_id,
+                offer=offer,
                 run_id=run_id,
                 step=step,
                 status=status,

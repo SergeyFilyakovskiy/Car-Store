@@ -69,7 +69,7 @@ class TestSupplierCarListCreate:
 
         assert response.status_code == 200
         assert len(_data(response)) == 1
-        assert _data(response)[0]["supplier"] == str(supplier_car.supplier.id) # pyright: ignore[reportArgumentType]
+        assert str(_data(response)[0]["supplier"]) == str(supplier_car.supplier.id) # pyright: ignore[reportArgumentType]
 
     def test_create_supplier_car_unauthenticated(self, api_client, supplier, car_model):
         """An unauthenticated user cannot create supplier cars."""

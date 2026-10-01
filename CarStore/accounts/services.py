@@ -125,7 +125,7 @@ class BalanceTopUpService:
             raise BalanceTopUpError("Amount must be positive")
 
         topup = BalanceTopUp.objects.create(
-            user=user,
+            user_id=user,
             amount=amount,
             payment_method=payment_method,
             status=BalanceTopUp.Status.PENDING,

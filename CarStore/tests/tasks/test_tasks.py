@@ -210,6 +210,7 @@ class TestPurchaseFromSuppliers:
         supplier_car_factory,
         stock_quantity,
     ):
+        from tests.accounts.factories import  TransactionFactory
         """Helper: set up a dealership with inventory, supplier, and history."""
         dealership = dealership_factory()
         car_model = car_model_factory()
@@ -240,6 +241,7 @@ class TestPurchaseFromSuppliers:
         )
 
         # Sales history: 30 units in 30 days -> demand 1/day
+        fake_transaction = TransactionFactory(status="COMPLETED")
         SupplyHistory.objects.create(
             dealership=dealership,
             supplier=supplier,
@@ -247,6 +249,7 @@ class TestPurchaseFromSuppliers:
             quantity=30,
             unit_price=Decimal("1000.00"),
             total_price=Decimal("30000.00"),
+            transaction=fake_transaction,
         )
 
         dealership.account_id.balance = Decimal("100000.00")

@@ -6,7 +6,6 @@ from core.enums import BodyTypesEnum, FuelTypeEnum
 from core.models import BaseModel
 from django.contrib.auth.models import AbstractUser
 from django.contrib.gis.db import models
-from django.db.models import Sum
 
 
 class User(AbstractUser):
@@ -41,20 +40,16 @@ class User(AbstractUser):
         max_digits=14,
         decimal_places=2,
         verbose_name="Balance (USD)",
+        default=Decimal("0"),
     )
 
     def get_balance(self) -> Decimal:
-        """
-        Returns current balance based on all ledger entries.
-        This is the single source of truth.
-        """
-
-        result = self.ledger_entries.aggregate(total=Sum("amount"))  # pyright: ignore[reportAttributeAccessIssue]
-        return result["total"] or Decimal("0")
+        """Single source of truth for the user balance."""
+        return self.balance
 
     def get_balance_history(self, limit: int = 50):
         """Returns recent balance history."""
-        return self.ledger_entries.order_by("-created_at")[:limit]  # pyright: ignore[reportAttributeAccessIssue]
+        return self.entries.order_by("-created_at")[:limit]  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class Buyer(BaseModel):

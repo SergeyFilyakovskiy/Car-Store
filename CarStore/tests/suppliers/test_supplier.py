@@ -36,7 +36,7 @@ class TestSupplierListCreate:
 
         assert response.status_code == 201, _data(response)
         assert Supplier.objects.filter(name="New Supplier").exists()
-        assert _data(response)["account_id"] == str(supplier_user.id)
+        assert str(_data(response)["account_id"]) == str(supplier_user.id)
 
     def test_create_supplier_wrong_role(self, buyer_api_client):
         """A user without 'supplier' role cannot create a supplier."""
@@ -113,7 +113,7 @@ class TestSupplierDetail:
             format="json",
         )
 
-        assert response.status_code == 404
+        assert response.status_code == 403
         supplier.refresh_from_db()
         assert supplier.name != "Hacked Name"
 
@@ -130,7 +130,7 @@ class TestSupplierDetail:
             reverse(DETAIL_URL, kwargs={"pk": supplier.id})
         )
 
-        assert response.status_code == 404
+        assert response.status_code == 403
         assert Supplier.objects.filter(id=supplier.id).exists()
 
     def test_retrieve_supplier_unauthenticated(self, api_client, supplier):

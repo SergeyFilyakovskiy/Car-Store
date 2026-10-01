@@ -33,18 +33,19 @@ class TestLogout:
 
         assert response.status_code == 400
 
-    def test_logout_success_blacklists_token(self, buyer_api_client):
+    def test_logout_success_blacklists_token(self, buyer_api_client, buyer_user):
         """A valid refresh token should be blacklisted and return 200."""
-        # Blacklist requires rest_framework_simplejwt.token_blacklist app.
-        # We mock blacklist() to keep the test independent of that app.
-        with patch(
-            "accounts.views.RefreshToken.blacklist"
-        ) as mock_blacklist:
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        # Создаём реальный токен
+        refresh = RefreshToken.for_user(buyer_user)
+
+        with patch.object(RefreshToken, "blacklist") as mock_blacklist:
             response = buyer_api_client.post(
                 reverse(LOGOUT_URL),
-                {"refresh": "some-valid-token"},
+                {"refresh": str(refresh)},
                 format="json",
             )
 
-        assert response.status_code == 200, _data(response)
+        assert response.status_code == 200
         mock_blacklist.assert_called_once()

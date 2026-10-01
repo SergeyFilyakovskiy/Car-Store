@@ -35,7 +35,7 @@ class TestDealershipListCreate:
 
         assert response.status_code == 201, _data(response)
         assert Dealership.objects.filter(name="New Auto Center").exists()
-        assert _data(response)["account_id"] == str(dealership_user.id)
+        assert str(_data(response)["account_id"]) == str(dealership_user.id)
 
     def test_create_dealership_wrong_role(self, buyer_api_client):
         """A user without 'dealership' role cannot create a dealership."""
@@ -111,7 +111,7 @@ class TestDealershipDetail:
         )
 
         # IsDealershipOwner checks obj.account_id == request.user
-        assert response.status_code == 404
+        assert response.status_code == 403
         dealership.refresh_from_db()
         assert dealership.name != "Hacked Name"
 
@@ -128,7 +128,7 @@ class TestDealershipDetail:
             reverse(DETAIL_URL, kwargs={"pk": dealership.id})
         )
 
-        assert response.status_code == 404
+        assert response.status_code == 403
         assert Dealership.objects.filter(id=dealership.id).exists()
 
     def test_retrieve_dealership_unauthenticated(self, api_client, dealership):
