@@ -224,4 +224,12 @@ CELERY_BEAT_SCHEDULE = {
             "expires": 540,
         },
     },
+    "process-pending-offers": {
+        "task": "deals.tasks.process_pending_offers",
+        "schedule": crontab(minute="*"),
+        "options": {
+            "queue": "default",
+            "expires": 50,
+        },
+    },
 }

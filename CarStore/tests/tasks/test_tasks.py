@@ -101,7 +101,6 @@ class TestActualizeSupplierBestPrices:
         supplier_b = supplier_factory(name="Supplier B")
         supplier_c = supplier_factory(name="Supplier C")
 
-        # Создаём три связи с разными ценами
         link_a = DealershipSupplier.objects.create(
             dealership=dealership,
             supplier=supplier_a,
@@ -131,7 +130,7 @@ class TestActualizeSupplierBestPrices:
         link_c.refresh_from_db()
 
         assert link_a.is_best is False
-        assert link_b.is_best is True  # Самая низкая цена
+        assert link_b.is_best is True
         assert link_c.is_best is False
 
     def test_actualize_supplier_prices_does_not_duplicate_logs(
@@ -146,11 +145,9 @@ class TestActualizeSupplierBestPrices:
             best_price=Decimal("1000.00"),
         )
 
-        # Первый запуск
         actualize_supplier_best_prices()
         first_count = SupplierPriceLog.objects.count()
 
-        # Второй запуск (цена не изменилась)
         actualize_supplier_best_prices()
         second_count = SupplierPriceLog.objects.count()
 
@@ -303,3 +300,156 @@ class TestPurchaseFromSuppliers:
         second_count = PurchasePlan.objects.count()
 
         assert first_count == second_count
+
+@pytest.mark.django_db
+@pytest.mark.fast
+class TestProcessOffer:
+    def test_process_offer_rejects_when_buyer_balance_is_zero(
+        self, buyer_user, offer, car_model
+    ):
+        """Task should reject offer when buyer balance is zero."""
+        from deals.models import OfferLog
+        from deals.tasks import process_offer
+        from core.enums import StatusEnum
+
+        buyer_user.balance = Decimal("0")
+        buyer_user.save()
+
+        offer.creator = buyer_user
+        offer.car_model = car_model
+        offer.status = StatusEnum.PENDING
+        offer.save()
+
+        result = process_offer(str(offer.id))
+
+        assert result["status"] == "rejected"
+        assert result["reason"] == "buyer_balance_empty"
+
+        offer.refresh_from_db()
+        assert offer.status == StatusEnum.CANCELLED
+
+    def test_process_offer_rejects_when_email_not_verified(
+        self, buyer_user, offer, car_model
+    ):
+        """Task should reject offer when buyer email is not verified."""
+        from deals.tasks import process_offer
+        from core.enums import StatusEnum
+
+        buyer_user.balance = Decimal("10000.00")
+        buyer_user.is_verifyed = False
+        buyer_user.save()
+
+        offer.creator = buyer_user
+        offer.car_model = car_model
+        offer.status = StatusEnum.PENDING
+        offer.save()
+
+        result = process_offer(str(offer.id))
+
+        assert result["status"] == "rejected"
+        assert result["reason"] == "email_not_confirmed"
+
+    def test_process_offer_completes_when_dealership_found(
+        self, buyer_user, dealership, inventory, offer, car_model
+    ):
+        """Task should complete offer when suitable dealership is found."""
+        from deals.tasks import process_offer
+        from deals.models import PurchaseHistory
+        from core.enums import StatusEnum
+
+        buyer_user.balance = Decimal("100000.00")
+        buyer_user.is_verifyed = True
+        buyer_user.save()
+
+        offer.creator = buyer_user
+        offer.car_model = car_model
+        offer.quantity = 1
+        offer.max_price = Decimal("50000.00")
+        offer.status = StatusEnum.PENDING
+        offer.save()
+
+        inventory.car_model_id = car_model
+        inventory.dealer_id = dealership
+        inventory.quantity = 5
+        inventory.sale_price = Decimal("40000.00")
+        inventory.save()
+
+        result = process_offer(str(offer.id))
+
+        assert result["status"] == "completed"
+        assert "transaction_id" in result
+
+        offer.refresh_from_db()
+        assert offer.status == StatusEnum.COMPLETED
+
+        history = PurchaseHistory.objects.filter(offer=offer).first()
+        assert history is not None
+        assert history.dealership == dealership
+
+    def test_process_offer_is_idempotent(
+        self, buyer_user, dealership, inventory, offer, car_model
+    ):
+        """Task should not process the same offer twice."""
+        from deals.tasks import process_offer
+        from core.enums import StatusEnum
+
+        buyer_user.balance = Decimal("100000.00")
+        buyer_user.is_verifyed = True
+        buyer_user.save()
+
+        offer.creator = buyer_user
+        offer.car_model = car_model
+        offer.quantity = 1
+        offer.max_price = Decimal("50000.00")
+        offer.status = StatusEnum.PENDING
+        offer.save()
+
+        inventory.car_model_id = car_model
+        inventory.dealer_id = dealership
+        inventory.quantity = 5
+        inventory.sale_price = Decimal("40000.00")
+        inventory.save()
+
+        result1 = process_offer(str(offer.id))
+        assert result1["status"] == "completed"
+
+        result2 = process_offer(str(offer.id))
+        assert result2["status"] == "already_processed"
+
+    def test_process_offer_selects_cheapest_dealership(
+        self, buyer_user, dealership, other_dealership, car_model, offer, inventory_factory
+    ):
+        """Task should select dealership with lowest price."""
+        from deals.tasks import process_offer
+        from core.enums import StatusEnum
+
+        buyer_user.balance = Decimal("100000.00")
+        buyer_user.is_verifyed = True
+        buyer_user.save()
+
+        offer.creator = buyer_user
+        offer.car_model = car_model
+        offer.quantity = 1
+        offer.max_price = Decimal("50000.00")
+        offer.status = StatusEnum.PENDING
+        offer.save()
+
+        inventory_factory(
+            dealership=dealership,
+            car_model=car_model,
+            quantity=5,
+            sale_price=Decimal("45000.00"),
+            purchase_price=Decimal("40000.00"),
+        )
+        inventory_factory(
+            dealership=other_dealership,
+            car_model=car_model,
+            quantity=5,
+            sale_price=Decimal("40000.00"),
+            purchase_price=Decimal("35000.00"),
+        )
+
+        result = process_offer(str(offer.id))
+
+        assert result["status"] == "completed"
+        assert result["dealership_id"] == str(other_dealership.id)
