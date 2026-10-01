@@ -163,8 +163,7 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": f"redis://{settings.redis_host}:\
-            {settings.redis_port}/{settings.redis_db}",
+        "LOCATION": f"redis://{settings.redis_host}:{settings.redis_port}/{settings.redis_db}",
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
             "PASSWORD": settings.redis_password.get_secret_value(),
@@ -177,8 +176,8 @@ CACHES = {
     }
 }
 
-CELERY_BROKER_URL = f"{settings.redis_url}"
-CELERY_RESULT_BACKEND = f"{settings.redis_celery_result_db}"
+CELERY_BROKER_URL = settings.redis_url_celery
+CELERY_RESULT_BACKEND = "django-db"
 
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
@@ -195,7 +194,7 @@ CELERY_TASK_TIME_LIMIT = 360
 CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
 
-CELERY_WORKER_HIJACK_ROOT_LOGGER = True
+CELERY_WORKER_HIJACK_ROOT_LOGGER = False
 CELERY_WORKER_LOG_FORMAT = "[%(asctime)s: %(levelname)s/%(processName)s] %(message)s"
 
 CELERY_BEAT_SCHEDULE = {
