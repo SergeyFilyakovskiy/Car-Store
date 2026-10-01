@@ -25,7 +25,7 @@ def generate_and_send_otp(user):
 
 
 def verify_otp(user, entered_otp):
-    otp_key = f"otp_key{user.id}"
+    otp_key = f"otp_key_{user.id}"
     attempts_key = f"otp_attempts_{user.id}"
 
     valid_otp = cache.get(otp_key)

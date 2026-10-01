@@ -41,7 +41,7 @@ class IsEmailVerified(permissions.BasePermission):
         return (
             request.user
             and request.user.is_authenticated
-            and getattr(request.user, "is_verified", None)
+            and getattr(request.user, "is_verifyed", None)
         )
 
 
@@ -82,11 +82,5 @@ class IsTransactionParticipant(permissions.BasePermission):
     (buyer, dealership, or supplier).
     """
 
-    def has_object_permission(self, request, view, obj):  # pyright: ignore[reportIncompatibleMethodOverride]
-        if obj.buyer and obj.buyer.user == request.user:
-            return True
-        if obj.dealership and obj.dealership.account_id == request.user:
-            return True
-        if obj.supplier and obj.supplier.account_id == request.user:
-            return True
-        return False
+    def has_object_permission(self, request, view, obj):
+        return obj.entries.filter(user=request.user).exists()
