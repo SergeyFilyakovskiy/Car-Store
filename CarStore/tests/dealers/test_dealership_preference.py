@@ -2,22 +2,30 @@
 Tests for DealershipPreference API endpoints.
 """
 
-from typing import cast
+from typing import Any
 
 import pytest
 from core.enums import BodyTypesEnum, DriveTypeEnum, FuelTypeEnum, TransmissionTypeEnum
 from dealers.models import DealershipPreference
 from django.urls import reverse
-from rest_framework.response import Response
 from tests.dealers.factories import DealershipPreferenceFactory
+
+LIST_CREATE_URL = "dealers:preference-list-create"
+DETAIL_URL = "dealers:preference-detail"
+
+
+def _data(response) -> dict[str, Any]:
+    """Typed accessor for response payload."""
+    return response.data  # type: ignore[no-any-return]
 
 
 @pytest.mark.django_db
 @pytest.mark.fast
-class TestDealershipPreferenceCRUD:
-    def test_create_preference_success(self, api_client, dealership_user, dealership):
-        """Owner can create a preference for their dealership."""
-        api_client.force_authenticate(user=dealership_user)
+class TestDealershipPreferenceListCreate:
+    """Tests for GET/POST /dealers/preferences/."""
+
+    def test_create_preference_success(self, dealership_api_client, dealership):
+        """The owner can create a preference for their dealership."""
         payload = {
             "dealer_id": str(dealership.id),
             "body_type": BodyTypesEnum.VAN.value,
@@ -30,20 +38,15 @@ class TestDealershipPreferenceCRUD:
             "max_price": "50000.00",
         }
 
-        response = cast(
-            Response,
-            api_client.post(
-                reverse("dealers:preference-list-create"), payload, format="json"
-            ),
-        )
-        assert response.status_code == 201, response.data
+        response = dealership_api_client.post(reverse(LIST_CREATE_URL), payload, format="json")
+
+        assert response.status_code == 201, _data(response)
         assert DealershipPreference.objects.filter(dealer_id=dealership).exists()
 
     def test_create_preference_wrong_dealer(
-        self, api_client, dealership_user, other_dealership
+        self, dealership_api_client, other_dealership
     ):
-        """Owner cannot create a preference for another user's dealership."""
-        api_client.force_authenticate(user=dealership_user)
+        """The owner cannot create a preference for another user's dealership."""
         payload = {
             "dealer_id": str(other_dealership.id),
             "body_type": BodyTypesEnum.SEDAN.value,
@@ -56,44 +59,78 @@ class TestDealershipPreferenceCRUD:
             "max_price": "30000.00",
         }
 
-        response = cast(
-            Response,
-            api_client.post(
-                reverse("dealers:preference-list-create"), payload, format="json"
-            ),
-        )
+        response = dealership_api_client.post(reverse(LIST_CREATE_URL), payload, format="json")
+
         assert response.status_code == 400
-        assert "dealer_id" in response.data  # pyright: ignore[reportOperatorIssue]
+        assert "dealer_id" in _data(response)
 
     def test_list_preferences_isolated(
-        self, api_client, dealership_user, dealership, other_dealership
+        self, dealership_api_client, dealership, other_dealership
     ):
-        """User only sees their own dealership's preferences."""
+        """The owner sees only their own dealership's preferences."""
         DealershipPreferenceFactory(dealer_id=dealership)
         DealershipPreferenceFactory(dealer_id=other_dealership)
 
-        api_client.force_authenticate(user=dealership_user)
-        response = cast(
-            Response, api_client.get(reverse("dealers:preference-list-create"))
+        response = dealership_api_client.get(reverse(LIST_CREATE_URL))
+
+        assert response.status_code == 200
+        assert len(_data(response)) == 1
+        assert _data(response)[0]["dealer_id"] == str(dealership.id) # pyright: ignore[reportArgumentType]
+
+    def test_create_preference_unauthenticated(self, api_client, dealership):
+        """An unauthenticated user cannot create preferences."""
+        payload = {
+            "dealer_id": str(dealership.id),
+            "body_type": BodyTypesEnum.SEDAN.value,
+            "fuel_type": FuelTypeEnum.PETROL.value,
+            "transmission": TransmissionTypeEnum.AT.value,
+            "drive_type": DriveTypeEnum.FWD.value,
+            "min_hp": 100,
+            "max_hp": 200,
+            "min_price": "10000.00",
+            "max_price": "30000.00",
+        }
+
+        response = api_client.post(reverse(LIST_CREATE_URL), payload, format="json")
+
+        assert response.status_code == 401
+
+
+@pytest.mark.django_db
+@pytest.mark.fast
+class TestDealershipPreferenceDetail:
+    """Tests for GET/PUT/PATCH/DELETE /dealers/preferences/<pk>/."""
+
+    def test_update_preference(self, dealership_api_client, dealership_preference):
+        """The owner can update a preference."""
+        payload = {"min_hp": 200}
+
+        response = dealership_api_client.patch(
+            reverse(DETAIL_URL, kwargs={"pk": dealership_preference.id}),
+            payload,
+            format="json",
         )
 
         assert response.status_code == 200
-        assert len(response.data) == 1  # pyright: ignore[reportArgumentType]
-        assert str(response.data[0]["dealer_id"]) == str(dealership.id)  # pyright: ignore[reportOptionalSubscript]
+        dealership_preference.refresh_from_db()
+        assert dealership_preference.min_hp == 200
 
     def test_delete_preference_non_owner(
-        self, api_client, other_dealership_user, dealership_preference
+        self, other_dealership_api_client, dealership_preference
     ):
-        """Non-owner cannot delete a preference."""
-        api_client.force_authenticate(user=other_dealership_user)
-        response = cast(
-            Response,
-            api_client.delete(
-                reverse(
-                    "dealers:preference-detail", kwargs={"pk": dealership_preference.id}
-                )
-            ),
+        """A non-owner cannot delete a preference."""
+        response = other_dealership_api_client.delete(
+            reverse(DETAIL_URL, kwargs={"pk": dealership_preference.id})
         )
 
-        assert response.status_code in [403, 404]
+        assert response.status_code == 404
         assert DealershipPreference.objects.filter(id=dealership_preference.id).exists()
+
+    def test_delete_preference_owner(self, dealership_api_client, dealership_preference):
+        """The owner can delete a preference."""
+        response = dealership_api_client.delete(
+            reverse(DETAIL_URL, kwargs={"pk": dealership_preference.id})
+        )
+
+        assert response.status_code == 204
+        assert not DealershipPreference.objects.filter(id=dealership_preference.id).exists()
