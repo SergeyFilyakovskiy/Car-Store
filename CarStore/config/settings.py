@@ -50,6 +50,8 @@ INSTALLED_APPS = [
     "django.contrib.gis",
     "drf_spectacular",
     "drf_spectacular_sidecar",
+    "django_celery_beat",
+    "django_celery_results",
 ]
 
 REST_FRAMEWORK = {

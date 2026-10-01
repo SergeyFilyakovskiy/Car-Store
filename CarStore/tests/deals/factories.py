@@ -9,8 +9,8 @@ from core.enums import StatusEnum
 from deals.models import (
     Offer,
     PurchaseHistory,
-    Transaction,
 )
+from accounts.models import Transaction
 from django.utils import timezone
 from factory.declarations import LazyFunction, SubFactory
 from factory.faker import Faker
