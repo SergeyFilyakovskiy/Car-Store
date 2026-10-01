@@ -1,44 +1,60 @@
 """
 Tests for Celery tasks.
 """
+
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
-from django.utils import timezone
-from datetime import timedelta
-from dealers.tasks import calculate_sales_statistics, expire_offers
 from core.enums import StatusEnum
-from tests.dealers.conftest import dealership, other_dealership, dealership_user, other_dealership_user
-from tests.deals.conftest import purchase_history
-from tests.deals.conftest import offer, transaction, purchase_history
-from tests.accounts.conftest import buyer_user, supplier_user
-from tests.cars.conftest import car_model, car_brand
-from tests.suppliers.conftest import supplier
+from dealers.models import DealershipSupplier, PurchasePlan, SupplierPriceLog
+from dealers.tasks import (
+    actualize_supplier_best_prices,
+    calculate_sales_statistics,
+    expire_offers,
+    purchase_from_suppliers,
+)
+from deals.models import OfferLog, PurchaseHistory, SupplyHistory
+from deals.tasks import process_offer
+from django.utils import timezone
+from analytics.models import SalesStatistics
+
+
+# =============================================================================
+# Task 1: calculate_sales_statistics
+# =============================================================================
+
 
 @pytest.mark.django_db
 @pytest.mark.fast
 class TestCalculateSalesStatistics:
+    """Tests for the calculate_sales_statistics task."""
+
     def test_calculate_statistics_success(self, dealership, purchase_history):
-        """Task should calculate statistics for a dealership."""
+        """The task calculates statistics for a dealership."""
         result = calculate_sales_statistics(dealership.id)
 
         assert result.get("new_statistics_for") == dealership.name
 
-        from analytics.models import SalesStatistics
         stats = SalesStatistics.objects.get(dealership=dealership)
         assert stats.total_sales == 1
         assert stats.total_revenue == purchase_history.price_paid
 
 
+# =============================================================================
+# Task 2: expire_offers
+# =============================================================================
+
 
 @pytest.mark.django_db
 @pytest.mark.fast
 class TestExpireOffers:
-    def test_expire_offers_success(self, offer):
-        """Task should mark expired offers as EXPIRED."""
+    """Tests for the expire_offers task."""
 
+    def test_expire_offers_success(self, offer):
+        """The task marks expired offers as EXPIRED."""
         offer.expires_at = timezone.now() - timedelta(days=1)
-        offer.save()
+        offer.save(update_fields=["expires_at"])
 
         result = expire_offers()
 
@@ -47,35 +63,59 @@ class TestExpireOffers:
         assert offer.status == StatusEnum.EXPIRED
 
     def test_expire_offers_no_expired(self, offer):
-        """Task should not affect non-expired offers."""
+        """The task does not affect non-expired offers."""
         result = expire_offers()
 
         assert result.get("expired_count") == 0
         offer.refresh_from_db()
         assert offer.status == StatusEnum.PENDING
 
+
+# =============================================================================
+# Task 3: actualize_supplier_best_prices
+# =============================================================================
+
+
 @pytest.mark.django_db
 @pytest.mark.fast
 class TestActualizeSupplierBestPrices:
-    def test_actualize_supplier_prices_updates_price_when_promo_active(
-        self, dealership_supplier_factory, supplier_promo_factory
-    ):
-        """Task should update best_price when active promo exists."""
-        from dealers.models import DealershipSupplier, SupplierPriceLog
-        from dealers.tasks import actualize_supplier_best_prices
+    """Tests for the actualize_supplier_best_prices task."""
 
-        link = dealership_supplier_factory(
-            base_price=Decimal("1000.00"),
+    def test_actualize_updates_price_when_promo_active(
+        self,
+        dealership,
+        car_model,
+        supplier,
+        supplier_car_factory,
+        supplier_promo_factory,
+        supplier_promo_model_factory,
+    ):
+        """The task updates best_price when an active promo exists."""
+        # DealershipSupplier link
+        link = DealershipSupplier.objects.create(
+            dealer_id=dealership,
+            supplier_id=supplier,
+            car_model_id=car_model,
             best_price=Decimal("1000.00"),
+            is_best=False,
         )
 
-        supplier_promo_factory(
-            supplier=link.supplier_id,
-            car_model=link.car_model_id,
+        # SupplierCar with base price (required by pricing service)
+        supplier_car_factory(
+            supplier=supplier,
+            car_model=car_model,
+            base_price=Decimal("1000.00"),
+            stock_quantity=10,
+        )
+
+        # Active promo: 10% off
+        promo = supplier_promo_factory(
+            supplier=supplier,
             discount_pct=Decimal("10.00"),
             start_date=timezone.now().date() - timedelta(days=1),
             end_date=timezone.now().date() + timedelta(days=1),
         )
+        supplier_promo_model_factory(promo=promo, car_model=car_model)
 
         result = actualize_supplier_best_prices()
 
@@ -87,40 +127,32 @@ class TestActualizeSupplierBestPrices:
         assert SupplierPriceLog.objects.count() == 1
 
         log = SupplierPriceLog.objects.first()
-        assert log.old_best_price == Decimal("1000.00") #type: ignore
-        assert log.new_best_price == Decimal("900.00") #type: ignore
+        assert log is not None
+        assert log.old_best_price == Decimal("1000.00")
+        assert log.new_best_price == Decimal("900.00")
 
-    def test_actualize_supplier_prices_sets_is_best_flag(
-        self, dealership, car_model, supplier_factory
+    def test_actualize_sets_is_best_flag(
+        self, dealership, car_model, supplier_factory, supplier_car_factory
     ):
-        """Task should set is_best=True for supplier with lowest price."""
-        from dealers.models import DealershipSupplier
-        from dealers.tasks import actualize_supplier_best_prices
-
+        """The task sets is_best=True for the supplier with the lowest price."""
         supplier_a = supplier_factory(name="Supplier A")
         supplier_b = supplier_factory(name="Supplier B")
         supplier_c = supplier_factory(name="Supplier C")
 
+        # SupplierCar with different base prices
+        supplier_car_factory(supplier=supplier_a, car_model=car_model, base_price=Decimal("1000.00"), stock_quantity=10)
+        supplier_car_factory(supplier=supplier_b, car_model=car_model, base_price=Decimal("900.00"), stock_quantity=10)
+        supplier_car_factory(supplier=supplier_c, car_model=car_model, base_price=Decimal("1100.00"), stock_quantity=10)
+
+        # DealershipSupplier links
         link_a = DealershipSupplier.objects.create(
-            dealership=dealership,
-            supplier=supplier_a,
-            car_model=car_model,
-            best_price=Decimal("1000.00"),
-            is_best=False,
+            dealer_id=dealership, supplier_id=supplier_a, car_model_id=car_model, best_price=Decimal("1000.00")
         )
         link_b = DealershipSupplier.objects.create(
-            dealership=dealership,
-            supplier=supplier_b,
-            car_model=car_model,
-            best_price=Decimal("900.00"),
-            is_best=False,
+            dealer_id=dealership, supplier_id=supplier_b, car_model_id=car_model, best_price=Decimal("900.00")
         )
         link_c = DealershipSupplier.objects.create(
-            dealership=dealership,
-            supplier=supplier_c,
-            car_model=car_model,
-            best_price=Decimal("1100.00"),
-            is_best=False,
+            dealer_id=dealership, supplier_id=supplier_c, car_model_id=car_model, best_price=Decimal("1100.00")
         )
 
         actualize_supplier_best_prices()
@@ -130,19 +162,24 @@ class TestActualizeSupplierBestPrices:
         link_c.refresh_from_db()
 
         assert link_a.is_best is False
-        assert link_b.is_best is True
+        assert link_b.is_best is True  # lowest price
         assert link_c.is_best is False
 
-    def test_actualize_supplier_prices_does_not_duplicate_logs(
-        self, dealership_supplier_factory
+    def test_actualize_does_not_duplicate_logs(
+        self, dealership, car_model, supplier, supplier_car_factory
     ):
-        """Task should not create duplicate logs if price hasn't changed."""
-        from dealers.models import SupplierPriceLog
-        from dealers.tasks import actualize_supplier_best_prices
-
-        link = dealership_supplier_factory(
-            base_price=Decimal("1000.00"),
+        """The task does not create duplicate logs if the price hasn't changed."""
+        DealershipSupplier.objects.create(
+            dealer_id=dealership,
+            supplier_id=supplier,
+            car_model_id=car_model,
             best_price=Decimal("1000.00"),
+        )
+        supplier_car_factory(
+            supplier=supplier,
+            car_model=car_model,
+            base_price=Decimal("1000.00"),
+            stock_quantity=10,
         )
 
         actualize_supplier_best_prices()
@@ -153,37 +190,56 @@ class TestActualizeSupplierBestPrices:
 
         assert first_count == second_count
 
+
+# =============================================================================
+# Task 4: purchase_from_suppliers
+# =============================================================================
+
+
 @pytest.mark.django_db
 @pytest.mark.fast
 class TestPurchaseFromSuppliers:
-    def test_purchase_task_creates_purchase_when_stock_covers_only_one_day(
-        self, dealership_factory, car_model_factory, supplier_factory, inventory_factory
-    ):
-        """Task should create purchase when stock covers only 1 day of demand."""
-        from dealers.models import DealershipSupplier, PurchasePlan
-        from dealers.tasks import purchase_from_suppliers
-        from deals.models import SupplyHistory
+    """Tests for the purchase_from_suppliers task."""
 
+    def _setup_purchase_scenario(
+        self,
+        dealership_factory,
+        car_model_factory,
+        supplier_factory,
+        inventory_factory,
+        supplier_car_factory,
+        stock_quantity,
+    ):
+        """Helper: set up a dealership with inventory, supplier, and history."""
         dealership = dealership_factory()
         car_model = car_model_factory()
         supplier = supplier_factory()
 
-        inventory = inventory_factory(
-            dealership=dealership,
-            car_model=car_model,
-            quantity=2,
+        inventory_factory(
+            dealer_id=dealership,
+            car_model_id=car_model,
+            quantity=stock_quantity,
             purchase_price=Decimal("1000.00"),
             sale_price=Decimal("1200.00"),
         )
 
         DealershipSupplier.objects.create(
-            dealership=dealership,
-            supplier=supplier,
-            car_model=car_model,
+            dealer_id=dealership,
+            supplier_id=supplier,
+            car_model_id=car_model,
             best_price=Decimal("1000.00"),
             is_best=True,
         )
 
+        # Supplier stock (required by accept_supply_offer)
+        supplier_car_factory(
+            supplier=supplier,
+            car_model=car_model,
+            base_price=Decimal("1000.00"),
+            stock_quantity=100,
+        )
+
+        # Sales history: 30 units in 30 days -> demand 1/day
         SupplyHistory.objects.create(
             dealership=dealership,
             supplier=supplier,
@@ -194,7 +250,27 @@ class TestPurchaseFromSuppliers:
         )
 
         dealership.account_id.balance = Decimal("100000.00")
-        dealership.account_id.save()
+        dealership.account_id.save(update_fields=["balance"])
+
+        return dealership, car_model, supplier
+
+    def test_purchase_creates_purchase_when_stock_covers_one_day(
+        self,
+        dealership_factory,
+        car_model_factory,
+        supplier_factory,
+        inventory_factory,
+        supplier_car_factory,
+    ):
+        """The task creates a purchase when stock covers only ~2 days of demand."""
+        dealership, car_model, supplier = self._setup_purchase_scenario(
+            dealership_factory,
+            car_model_factory,
+            supplier_factory,
+            inventory_factory,
+            supplier_car_factory,
+            stock_quantity=2,
+        )
 
         result = purchase_from_suppliers()
 
@@ -208,90 +284,46 @@ class TestPurchaseFromSuppliers:
         assert plan.supplier == supplier
         assert plan.status == PurchasePlan.Status.COMPLETED
 
-    def test_purchase_task_does_not_create_purchase_when_stock_covers_14_days(
-        self, dealership_factory, car_model_factory, supplier_factory, inventory_factory
+    def test_purchase_skips_when_stock_covers_14_days(
+        self,
+        dealership_factory,
+        car_model_factory,
+        supplier_factory,
+        inventory_factory,
+        supplier_car_factory,
     ):
-        """Task should not create purchase when stock covers 14+ days."""
-        from dealers.models import DealershipSupplier, PurchasePlan
-        from dealers.tasks import purchase_from_suppliers
-        from deals.models import SupplyHistory
-
-        dealership = dealership_factory()
-        car_model = car_model_factory()
-        supplier = supplier_factory()
-
-        inventory = inventory_factory(
-            dealership=dealership,
-            car_model=car_model,
-            quantity=14,
-            purchase_price=Decimal("1000.00"),
-            sale_price=Decimal("1200.00"),
+        """The task does not create a purchase when stock covers 14+ days."""
+        self._setup_purchase_scenario(
+            dealership_factory,
+            car_model_factory,
+            supplier_factory,
+            inventory_factory,
+            supplier_car_factory,
+            stock_quantity=14,
         )
-
-        DealershipSupplier.objects.create(
-            dealership=dealership,
-            supplier=supplier,
-            car_model=car_model,
-            best_price=Decimal("1000.00"),
-            is_best=True,
-        )
-
-        SupplyHistory.objects.create(
-            dealership=dealership,
-            supplier=supplier,
-            car_model=car_model,
-            quantity=30,
-            unit_price=Decimal("1000.00"),
-            total_price=Decimal("30000.00"),
-        )
-
-        dealership.account_id.balance = Decimal("100000.00")
-        dealership.account_id.save()
 
         result = purchase_from_suppliers()
 
         assert result["total_purchases"] == 0
         assert result["total_rejections"] >= 1
 
-    def test_purchase_task_is_idempotent(
-        self, dealership_factory, car_model_factory, supplier_factory, inventory_factory
+    def test_purchase_is_idempotent(
+        self,
+        dealership_factory,
+        car_model_factory,
+        supplier_factory,
+        inventory_factory,
+        supplier_car_factory,
     ):
-        """Task should not create duplicate purchases on repeated runs."""
-        from dealers.models import DealershipSupplier, PurchasePlan
-        from dealers.tasks import purchase_from_suppliers
-        from deals.models import SupplyHistory
-
-        dealership = dealership_factory()
-        car_model = car_model_factory()
-        supplier = supplier_factory()
-
-        inventory = inventory_factory(
-            dealership=dealership,
-            car_model=car_model,
-            quantity=2,
-            purchase_price=Decimal("1000.00"),
-            sale_price=Decimal("1200.00"),
+        """The task does not create duplicate purchases on repeated runs."""
+        self._setup_purchase_scenario(
+            dealership_factory,
+            car_model_factory,
+            supplier_factory,
+            inventory_factory,
+            supplier_car_factory,
+            stock_quantity=2,
         )
-
-        DealershipSupplier.objects.create(
-            dealership=dealership,
-            supplier=supplier,
-            car_model=car_model,
-            best_price=Decimal("1000.00"),
-            is_best=True,
-        )
-
-        SupplyHistory.objects.create(
-            dealership=dealership,
-            supplier=supplier,
-            car_model=car_model,
-            quantity=30,
-            unit_price=Decimal("1000.00"),
-            total_price=Decimal("30000.00"),
-        )
-
-        dealership.account_id.balance = Decimal("100000.00")
-        dealership.account_id.save()
 
         purchase_from_suppliers()
         first_count = PurchasePlan.objects.count()
@@ -301,24 +333,23 @@ class TestPurchaseFromSuppliers:
 
         assert first_count == second_count
 
+
+# =============================================================================
+# Task 5: process_offer
+# =============================================================================
+
+
 @pytest.mark.django_db
 @pytest.mark.fast
 class TestProcessOffer:
+    """Tests for the process_offer task."""
+
     def test_process_offer_rejects_when_buyer_balance_is_zero(
-        self, buyer_user, offer, car_model
+        self, buyer_user, offer
     ):
-        """Task should reject offer when buyer balance is zero."""
-        from deals.models import OfferLog
-        from deals.tasks import process_offer
-        from core.enums import StatusEnum
-
+        """The task rejects the offer when the buyer balance is zero."""
         buyer_user.balance = Decimal("0")
-        buyer_user.save()
-
-        offer.creator = buyer_user
-        offer.car_model = car_model
-        offer.status = StatusEnum.PENDING
-        offer.save()
+        buyer_user.save(update_fields=["balance"])
 
         result = process_offer(str(offer.id))
 
@@ -329,20 +360,12 @@ class TestProcessOffer:
         assert offer.status == StatusEnum.CANCELLED
 
     def test_process_offer_rejects_when_email_not_verified(
-        self, buyer_user, offer, car_model
+        self, buyer_user, offer
     ):
-        """Task should reject offer when buyer email is not verified."""
-        from deals.tasks import process_offer
-        from core.enums import StatusEnum
-
+        """The task rejects the offer when the buyer email is not verified."""
         buyer_user.balance = Decimal("10000.00")
         buyer_user.is_verifyed = False
-        buyer_user.save()
-
-        offer.creator = buyer_user
-        offer.car_model = car_model
-        offer.status = StatusEnum.PENDING
-        offer.save()
+        buyer_user.save(update_fields=["balance", "is_verifyed"])
 
         result = process_offer(str(offer.id))
 
@@ -350,29 +373,20 @@ class TestProcessOffer:
         assert result["reason"] == "email_not_confirmed"
 
     def test_process_offer_completes_when_dealership_found(
-        self, buyer_user, dealership, inventory, offer, car_model
+        self, buyer_user, dealership, inventory, offer
     ):
-        """Task should complete offer when suitable dealership is found."""
-        from deals.tasks import process_offer
-        from deals.models import PurchaseHistory
-        from core.enums import StatusEnum
-
+        """The task completes the offer when a suitable dealership is found."""
         buyer_user.balance = Decimal("100000.00")
         buyer_user.is_verifyed = True
-        buyer_user.save()
+        buyer_user.save(update_fields=["balance", "is_verifyed"])
 
-        offer.creator = buyer_user
-        offer.car_model = car_model
         offer.quantity = 1
         offer.max_price = Decimal("50000.00")
-        offer.status = StatusEnum.PENDING
-        offer.save()
+        offer.save(update_fields=["quantity", "max_price"])
 
-        inventory.car_model_id = car_model
-        inventory.dealer_id = dealership
         inventory.quantity = 5
         inventory.sale_price = Decimal("40000.00")
-        inventory.save()
+        inventory.save(update_fields=["quantity", "sale_price"])
 
         result = process_offer(str(offer.id))
 
@@ -387,28 +401,20 @@ class TestProcessOffer:
         assert history.dealership == dealership
 
     def test_process_offer_is_idempotent(
-        self, buyer_user, dealership, inventory, offer, car_model
+        self, buyer_user, dealership, inventory, offer
     ):
-        """Task should not process the same offer twice."""
-        from deals.tasks import process_offer
-        from core.enums import StatusEnum
-
+        """The task does not process the same offer twice."""
         buyer_user.balance = Decimal("100000.00")
         buyer_user.is_verifyed = True
-        buyer_user.save()
+        buyer_user.save(update_fields=["balance", "is_verifyed"])
 
-        offer.creator = buyer_user
-        offer.car_model = car_model
         offer.quantity = 1
         offer.max_price = Decimal("50000.00")
-        offer.status = StatusEnum.PENDING
-        offer.save()
+        offer.save(update_fields=["quantity", "max_price"])
 
-        inventory.car_model_id = car_model
-        inventory.dealer_id = dealership
         inventory.quantity = 5
         inventory.sale_price = Decimal("40000.00")
-        inventory.save()
+        inventory.save(update_fields=["quantity", "sale_price"])
 
         result1 = process_offer(str(offer.id))
         assert result1["status"] == "completed"
@@ -417,33 +423,33 @@ class TestProcessOffer:
         assert result2["status"] == "already_processed"
 
     def test_process_offer_selects_cheapest_dealership(
-        self, buyer_user, dealership, other_dealership, car_model, offer, inventory_factory
+        self,
+        buyer_user,
+        dealership,
+        other_dealership,
+        car_model,
+        offer,
+        inventory_factory,
     ):
-        """Task should select dealership with lowest price."""
-        from deals.tasks import process_offer
-        from core.enums import StatusEnum
-
+        """The task selects the dealership with the lowest price."""
         buyer_user.balance = Decimal("100000.00")
         buyer_user.is_verifyed = True
-        buyer_user.save()
+        buyer_user.save(update_fields=["balance", "is_verifyed"])
 
-        offer.creator = buyer_user
-        offer.car_model = car_model
         offer.quantity = 1
         offer.max_price = Decimal("50000.00")
-        offer.status = StatusEnum.PENDING
-        offer.save()
+        offer.save(update_fields=["quantity", "max_price"])
 
         inventory_factory(
-            dealership=dealership,
-            car_model=car_model,
+            dealer_id=dealership,
+            car_model_id=car_model,
             quantity=5,
             sale_price=Decimal("45000.00"),
             purchase_price=Decimal("40000.00"),
         )
         inventory_factory(
-            dealership=other_dealership,
-            car_model=car_model,
+            dealer_id=other_dealership,
+            car_model_id=car_model,
             quantity=5,
             sale_price=Decimal("40000.00"),
             purchase_price=Decimal("35000.00"),
@@ -453,3 +459,9 @@ class TestProcessOffer:
 
         assert result["status"] == "completed"
         assert result["dealership_id"] == str(other_dealership.id)
+
+    def test_process_offer_unauthenticated_offer_not_found(self):
+        """The task handles a non-existent offer gracefully."""
+        result = process_offer("00000000-0000-0000-0000-000000000000")
+
+        assert result["status"] == "not_found"
