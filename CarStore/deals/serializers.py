@@ -18,7 +18,7 @@ class OfferSerializer(serializers.ModelSerializer):
             "expires_at",
             "quantity",
         )
-        read_only_fields = ("id", "status", "buyer")
+        read_only_fields = ("id", "status", "creator")
 
 
 class PurchaseHistorySerializer(serializers.ModelSerializer):

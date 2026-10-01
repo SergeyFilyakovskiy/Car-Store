@@ -102,6 +102,8 @@ class PurchaseHistory(BaseModel):
         decimal_places=2,
         verbose_name="Cost price",
     )
+    quantity = models.PositiveIntegerField(default=1, verbose_name="Quantity")
+
     purchased_at = models.DateTimeField(auto_now_add=True, verbose_name="Purchased at")
 
     class Meta:  # type: ignore
