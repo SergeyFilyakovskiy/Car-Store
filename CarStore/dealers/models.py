@@ -487,6 +487,15 @@ class PurchasePlan(BaseModel):
     reason = models.CharField(max_length=255, blank=True, default="")
     payload = models.JSONField(default=dict, blank=True)
 
+    offer = models.OneToOneField(
+        "deals.Offer",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="purchase_plan",
+        verbose_name="Offer",
+    )
+
     class Meta:  # type: ignore
         verbose_name = "Purchase plan"
         verbose_name_plural = "Purchase plans"

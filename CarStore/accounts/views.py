@@ -7,6 +7,7 @@ from core.otp_utils import (
 )
 from django.contrib.auth import authenticate, get_user_model
 from django.core.cache import cache
+from django.db import models
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, permissions, status
@@ -17,8 +18,8 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from accounts.models import BalanceTopUp, Buyer, Entry
-from accounts.permissions import IsOwnerProfile
+from accounts.models import BalanceTopUp, Buyer, Entry, Transaction
+from accounts.permissions import IsOwnerProfile, IsTransactionParticipant
 
 from .exceptions import (
     BalanceTopUpError,
@@ -33,6 +34,7 @@ from .serializers import (
     LoginSerializer,
     RegisterSerializer,
     TopUpStatusSerializer,
+    TransactionSerializer,
     UserSerializer,
 )
 from .services import BalanceTopUpService
@@ -402,4 +404,40 @@ class EntryListAPIView(generics.ListAPIView):
     def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
         return Entry.objects.filter(user=self.request.user).select_related(
             "transaction"
+        )
+
+
+class TransactionListAPIView(generics.ListAPIView):
+    """
+    List transactions where the user is a participant.
+    Available to buyers, dealerships, and suppliers.
+    """
+
+    serializer_class = TransactionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
+        user = self.request.user
+        return Transaction.objects.filter(
+            models.Q(buyer__user=user)
+            | models.Q(dealership__account_id=user)
+            | models.Q(supplier__account_id=user)
+        )
+
+
+class TransactionDetailAPIView(generics.RetrieveAPIView):
+    """
+    Retrieve details of a specific transaction.
+    Only participants can access this endpoint.
+    """
+
+    serializer_class = TransactionSerializer
+    permission_classes = [permissions.IsAuthenticated, IsTransactionParticipant]
+
+    def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
+        user = self.request.user
+        return Transaction.objects.filter(
+            models.Q(buyer__user=user)
+            | models.Q(dealership__account_id=user)
+            | models.Q(supplier__account_id=user)
         )

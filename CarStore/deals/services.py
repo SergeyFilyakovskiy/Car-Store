@@ -22,7 +22,7 @@ from django.db import transaction
 from django.utils import timezone
 from suppliers.models import Supplier, SupplierCar, SupplierPromoModel
 
-from deals.models import Offer, PurchaseHistory
+from deals.models import Offer, PurchaseHistory, SupplyHistory
 
 from .dto import DealResult, SupplyResult
 from .exceptions import (
@@ -264,6 +264,17 @@ def accept_supply_offer(offer: Offer, supplier: Supplier) -> SupplyResult:
 
     offer.status = StatusEnum.COMPLETED
     offer.save(update_fields=["status"])
+
+    SupplyHistory.objects.create(
+        dealership=dealership,
+        supplier=supplier,
+        car_model=offer.car_model,
+        offer=offer,
+        transaction=deal,
+        quantity=offer.quantity,
+        unit_price=unit_price,
+        total_price=total_price,
+    )
 
     return SupplyResult(
         offer=offer,

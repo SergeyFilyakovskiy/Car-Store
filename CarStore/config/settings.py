@@ -50,6 +50,8 @@ INSTALLED_APPS = [
     "django.contrib.gis",
     "drf_spectacular",
     "drf_spectacular_sidecar",
+    "django_celery_beat",
+    "django_celery_results",
 ]
 
 REST_FRAMEWORK = {
@@ -197,13 +199,29 @@ CELERY_WORKER_HIJACK_ROOT_LOGGER = True
 CELERY_WORKER_LOG_FORMAT = "[%(asctime)s: %(levelname)s/%(processName)s] %(message)s"
 
 CELERY_BEAT_SCHEDULE = {
-    "calculate-sales-statistics-hourly": {
+    "calculate-sales-statistics": {
         "task": "dealers.tasks.calculate_sales_statistics",
         "schedule": crontab(minute=0, hour="*/1"),
         "args": (),
     },
-    "expire-offers-every-10-minutes": {
+    "expire-offers": {
         "task": "dealers.tasks.expire_offers",
         "schedule": crontab(minute="*/10"),
+    },
+    "actualize-supplier-prices": {
+        "task": "dealers.tasks.actualize_supplier_best_prices",
+        "schedule": crontab(minute=0),
+        "options": {
+            "queue": "default",
+            "expires": 3300,
+        },
+    },
+    "purchase-from-suppliers": {
+        "task": "dealers.tasks.purchase_from_suppliers",
+        "schedule": crontab(minute="*/10"),
+        "options": {
+            "queue": "default",
+            "expires": 540,
+        },
     },
 }

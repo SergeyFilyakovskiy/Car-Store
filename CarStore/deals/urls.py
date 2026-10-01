@@ -16,17 +16,6 @@ urlpatterns = [
         views.OfferDetailAPIView.as_view(),
         name="offer-detail",
     ),
-    # Transactions
-    path(
-        "transactions/",
-        views.TransactionListAPIView.as_view(),
-        name="transaction-list",
-    ),
-    path(
-        "transactions/<uuid:pk>/",
-        views.TransactionDetailAPIView.as_view(),
-        name="transaction-detail",
-    ),
     # Purchase History
     path(
         "purchase-history/",

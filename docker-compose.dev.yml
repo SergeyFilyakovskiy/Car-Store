@@ -21,6 +21,7 @@ services:
     networks:
       - internal
       - public
+
   postgres:
     image: postgis/postgis:16-3.4
     restart: unless-stopped
@@ -66,12 +67,10 @@ services:
 
   celery_worker:
     build:
-     context: .
-     dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile
     container_name: carstore_celery_worker
-    command: celery -A config worker -l info --concurrency=2
-    volumes:
-      - .:/app
+    command: sh -c "cd /app/CarStore && celery -A config worker -l info --concurrency=2"
     depends_on:
       - django_app
       - redis
@@ -84,9 +83,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: carstore_celery_beat
-    command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
-    volumes:
-      - .:/app
+    command: sh -c "cd /app/CarStore && celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler"
     depends_on:
       - django_app
       - redis

@@ -1,4 +1,3 @@
-from accounts.models import Transaction
 from analytics.models import SalesStatistics
 from rest_framework import serializers
 
@@ -10,27 +9,16 @@ class OfferSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Offer
-        fields = ("id", "buyer", "car_model", "max_price", "status", "expires_at")
-        read_only_fields = ("id", "status", "buyer")
-
-
-class TransactionSerializer(serializers.ModelSerializer):
-    """Serialize transactions."""
-
-    class Meta:
-        model = Transaction
         fields = (
             "id",
-            "transaction_type",
-            "amount",
-            "buyer",
-            "dealership",
-            "supplier",
+            "creator",
             "car_model",
-            "offer",
-            "reason",
+            "max_price",
+            "status",
+            "expires_at",
+            "quantity",
         )
-        read_only_fields = ("id",)
+        read_only_fields = ("id", "status", "buyer")
 
 
 class PurchaseHistorySerializer(serializers.ModelSerializer):

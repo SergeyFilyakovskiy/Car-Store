@@ -5,7 +5,6 @@ Provides endpoints for buyer offers, transactions, and purchase history.
 """
 
 from accounts.exceptions import InsufficientBalanceError
-from accounts.models import Transaction
 from accounts.permissions import IsBuyer, IsDealership, IsSupplier
 from dealers.models import Dealership
 from django.db import models
@@ -26,7 +25,6 @@ from deals.models import Offer, PurchaseHistory
 from deals.serializers import (
     OfferSerializer,
     PurchaseHistorySerializer,
-    TransactionSerializer,
 )
 from deals.services import accept_purchase_offer, accept_supply_offer
 
@@ -38,22 +36,6 @@ class IsOfferOwner(permissions.BasePermission):
 
     def has_object_permission(self, request, view, obj):
         return obj.buyer.user == request.user
-
-
-class IsTransactionParticipant(permissions.BasePermission):
-    """
-    Custom permission to allow access only to participants of the transaction
-    (buyer, dealership, or supplier).
-    """
-
-    def has_object_permission(self, request, view, obj):  # pyright: ignore[reportIncompatibleMethodOverride]
-        if obj.buyer and obj.buyer.user == request.user:
-            return True
-        if obj.dealership and obj.dealership.account_id == request.user:
-            return True
-        if obj.supplier and obj.supplier.account_id == request.user:
-            return True
-        return False
 
 
 class IsPurchaseHistoryOwner(permissions.BasePermission):
@@ -105,47 +87,6 @@ class OfferDetailAPIView(generics.RetrieveUpdateAPIView):
 
     def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
         return Offer.objects.filter(buyer__user=self.request.user)
-
-
-# ==============================================================================
-# Transaction Views (Read-Only)
-# ==============================================================================
-
-
-class TransactionListAPIView(generics.ListAPIView):
-    """
-    List transactions where the user is a participant.
-    Available to buyers, dealerships, and suppliers.
-    """
-
-    serializer_class = TransactionSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
-        user = self.request.user
-        return Transaction.objects.filter(
-            models.Q(buyer__user=user)
-            | models.Q(dealership__account_id=user)
-            | models.Q(supplier__account_id=user)
-        )
-
-
-class TransactionDetailAPIView(generics.RetrieveAPIView):
-    """
-    Retrieve details of a specific transaction.
-    Only participants can access this endpoint.
-    """
-
-    serializer_class = TransactionSerializer
-    permission_classes = [permissions.IsAuthenticated, IsTransactionParticipant]
-
-    def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
-        user = self.request.user
-        return Transaction.objects.filter(
-            models.Q(buyer__user=user)
-            | models.Q(dealership__account_id=user)
-            | models.Q(supplier__account_id=user)
-        )
 
 
 # ==============================================================================
