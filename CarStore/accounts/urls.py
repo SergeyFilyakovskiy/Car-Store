@@ -14,7 +14,11 @@ from .views import (
     TransactionDetailAPIView,
     TransactionListAPIView,
     api_login_view,
+    api_logout_view,
     api_verify_otp_view,
+    cancel_email_change_view,
+    confirm_email_change_view,
+    request_email_change_view,
 )
 
 urlpatterns = [
@@ -30,8 +34,8 @@ urlpatterns = [
     path("login/", api_login_view, name="login"),
     path("verify-otp/", api_verify_otp_view, name="verify_otp"),
     path("topup/", CreateTopUpView.as_view(), name="create-topup"),
-    path("topup/<int:id>/", TopUpStatusView.as_view(), name="topup-status"),
-    path("topup/<int:id>/cancel/", TopUpCancelView.as_view(), name="topup-cancel"),
+    path("topup/<uuid:id>/", TopUpStatusView.as_view(), name="topup-status"),
+    path("topup/<uuid:id>/cancel/", TopUpCancelView.as_view(), name="topup-cancel"),
     path("webhooks/payment/", payment_webhook, name="payment-webhook"),
     path("entries/", EntryListAPIView.as_view(), name="entry-list"),
     # Transactions
@@ -45,4 +49,12 @@ urlpatterns = [
         TransactionDetailAPIView.as_view(),
         name="transaction-detail",
     ),
+    path("logout/", api_logout_view, name="logout"),
+    path(
+        "email/change/request/", request_email_change_view, name="email-change-request"
+    ),
+    path(
+        "email/change/confirm/", confirm_email_change_view, name="email-change-confirm"
+    ),
+    path("email/change/cancel/", cancel_email_change_view, name="email-change-cancel"),
 ]

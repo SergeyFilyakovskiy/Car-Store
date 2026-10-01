@@ -436,8 +436,4 @@ class TransactionDetailAPIView(generics.RetrieveAPIView):
 
     def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
         user = self.request.user
-        return Transaction.objects.filter(
-            models.Q(buyer__user=user)
-            | models.Q(dealership__account_id=user)
-            | models.Q(supplier__account_id=user)
-        )
+        return Transaction.objects.filter(entries__user=user).distinct()
