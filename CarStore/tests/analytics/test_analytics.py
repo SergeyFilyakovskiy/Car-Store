@@ -1,91 +1,130 @@
 """
-Tests for analytics API endpoints.
+Tests for analytics API endpoints (sales statistics).
 """
 
-from typing import cast
+from decimal import Decimal
+from typing import Any
 
 import pytest
 from django.urls import reverse
-from rest_framework.response import Response
-from tests.dealers.conftest import (
-    dealership_user,
-    other_dealership_user,
-    dealership,
-    other_dealership,
-)
+
+LIST_URL = "analytics:sales-statistics-list"
+DETAIL_URL = "analytics:sales-statistics-detail"
+
+
+def _data(response) -> dict[str, Any]:
+    """Typed accessor for response payload."""
+    return response.data  # type: ignore[no-any-return]
 
 
 @pytest.mark.django_db
 @pytest.mark.fast
 class TestSalesStatisticsList:
-    def test_list_statistics_owner(self, api_client, dealership_user, sales_statistics):
-        """Dealership owner can list their statistics."""
-        api_client.force_authenticate(user=dealership_user)
-        response = cast(
-            Response, api_client.get(reverse("analytics:sales-statistics-list"))
-        )
+    """Tests for GET /analytics/ (list)."""
 
-        assert response.status_code == 200
-        assert len(response.data) == 1  # pyright: ignore[reportArgumentType]
-        assert response.data[0]["dealership"] == sales_statistics.dealership.id  # pyright: ignore[reportOptionalSubscript]
-
-    def test_list_statistics_wrong_role(self, api_client, authenticated_user):
-        """Non-dealership user cannot access statistics."""
-        api_client.force_authenticate(user=authenticated_user)  # role is 'buyer'
-        response = cast(
-            Response, api_client.get(reverse("analytics:sales-statistics-list"))
-        )
-
-        assert response.status_code in [401, 403]
-
-    def test_list_statistics_isolation(
-        self, api_client, dealership_user, sales_statistics, other_sales_statistics
+    def test_owner_sees_own_statistics(
+        self, api_client, dealership_owner, sales_statistics
     ):
-        """Dealership owner only sees their own statistics."""
-        api_client.force_authenticate(user=dealership_user)
-        response = cast(
-            Response, api_client.get(reverse("analytics:sales-statistics-list"))
-        )
+        """The owner sees their own statistics with the dealership name."""
+        owner, dealership = dealership_owner
+        api_client.force_authenticate(user=owner)
+
+        response = api_client.get(reverse(LIST_URL))
 
         assert response.status_code == 200
-        assert len(response.data) == 1  # pyright: ignore[reportArgumentType]
+        results = _data(response)
+        assert len(results) == 1
+        assert results[0]["dealership"] == str(dealership.id) # pyright: ignore[reportArgumentType]
+        assert results[0]["dealership_name"] == dealership.name # pyright: ignore[reportArgumentType]
+
+    def test_unauthenticated_returns_401(self, api_client):
+        """Unauthenticated users cannot list statistics."""
+        response = api_client.get(reverse(LIST_URL))
+
+        assert response.status_code == 401
+
+    def test_wrong_role_returns_403(self, api_client, buyer_user):
+        """A buyer (not a dealership) is rejected by IsDealership."""
+        api_client.force_authenticate(user=buyer_user)
+
+        response = api_client.get(reverse(LIST_URL))
+
+        assert response.status_code == 403
+
+    def test_isolation_between_dealerships(
+        self, api_client, dealership_owner, sales_statistics, other_sales_statistics
+    ):
+        """An owner sees only their own statistics, not others'."""
+        owner, _ = dealership_owner
+        api_client.force_authenticate(user=owner)
+
+        response = api_client.get(reverse(LIST_URL))
+
+        assert response.status_code == 200
+        assert len(_data(response)) == 1
+
+    def test_owner_without_statistics_gets_empty_list(self, api_client, dealership_owner):
+        """An owner with no statistics record gets an empty list."""
+        owner, _ = dealership_owner
+        api_client.force_authenticate(user=owner)
+
+        response = api_client.get(reverse(LIST_URL))
+
+        assert response.status_code == 200
+        assert len(_data(response)) == 0
 
 
 @pytest.mark.django_db
 @pytest.mark.fast
 class TestSalesStatisticsDetail:
-    def test_retrieve_statistics_owner(
-        self, api_client, dealership_user, sales_statistics
+    """Tests for GET /analytics/<pk>/ (detail)."""
+
+    def test_owner_retrieves_own_statistics(
+        self, api_client, dealership_owner, sales_statistics
     ):
-        """Dealership owner can retrieve their statistics."""
-        api_client.force_authenticate(user=dealership_user)
-        response = cast(
-            Response,
-            api_client.get(
-                reverse(
-                    "analytics:sales-statistics-detail",
-                    kwargs={"pk": sales_statistics.id},
-                )
-            ),
+        """The owner can retrieve their statistics with correct values."""
+        owner, _ = dealership_owner
+        api_client.force_authenticate(user=owner)
+
+        response = api_client.get(
+            reverse(DETAIL_URL, kwargs={"pk": sales_statistics.id})
         )
 
         assert response.status_code == 200
-        assert response.data["total_sales"] == sales_statistics.total_sales  # pyright: ignore[reportOptionalSubscript]
-        assert response.data["total_revenue"] == str(sales_statistics.total_revenue)  # pyright: ignore[reportOptionalSubscript]
+        data = _data(response)
+        assert data["total_sales"] == sales_statistics.total_sales
+        assert Decimal(data["total_revenue"]) == sales_statistics.total_revenue
+        assert data["unique_buyers"] == sales_statistics.unique_buyers
+        assert Decimal(data["total_profit"]) == sales_statistics.total_profit
 
-    def test_retrieve_statistics_non_owner(
-        self, api_client, other_dealership_user, sales_statistics
+    def test_non_owner_cannot_retrieve(
+        self, api_client, other_dealership_owner, sales_statistics
     ):
-        """Non-owner cannot retrieve another dealership's statistics."""
-        api_client.force_authenticate(user=other_dealership_user)
-        response = cast(
-            Response,
-            api_client.get(
-                reverse(
-                    "analytics:sales-statistics-detail",
-                    kwargs={"pk": sales_statistics.id},
-                )
-            ),
+        """Another dealership owner cannot access foreign statistics."""
+        other_owner, _ = other_dealership_owner
+        api_client.force_authenticate(user=other_owner)
+
+        response = api_client.get(
+            reverse(DETAIL_URL, kwargs={"pk": sales_statistics.id})
         )
 
-        assert response.status_code in [403, 404]
+        assert response.status_code == 404
+
+    def test_unauthenticated_returns_401(self, api_client, sales_statistics):
+        """Unauthenticated users cannot retrieve statistics."""
+        response = api_client.get(
+            reverse(DETAIL_URL, kwargs={"pk": sales_statistics.id})
+        )
+
+        assert response.status_code == 401
+
+    def test_buyer_cannot_retrieve(self, api_client, buyer_user, sales_statistics):
+        """A buyer cannot retrieve dealership statistics."""
+        api_client.force_authenticate(user=buyer_user)
+
+        response = api_client.get(
+            reverse(DETAIL_URL, kwargs={"pk": sales_statistics.id})
+        )
+
+        # get_queryset filters by dealership__account_id, so the object is not found
+        assert response.status_code == 404
