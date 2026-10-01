@@ -11,6 +11,8 @@ from .views import (
     RegisterAPIView,
     TopUpCancelView,
     TopUpStatusView,
+    TransactionDetailAPIView,
+    TransactionListAPIView,
     api_login_view,
     api_verify_otp_view,
 )
@@ -32,4 +34,15 @@ urlpatterns = [
     path("topup/<int:id>/cancel/", TopUpCancelView.as_view(), name="topup-cancel"),
     path("webhooks/payment/", payment_webhook, name="payment-webhook"),
     path("entries/", EntryListAPIView.as_view(), name="entry-list"),
+    # Transactions
+    path(
+        "transactions/",
+        TransactionListAPIView.as_view(),
+        name="transaction-list",
+    ),
+    path(
+        "transactions/<uuid:pk>/",
+        TransactionDetailAPIView.as_view(),
+        name="transaction-detail",
+    ),
 ]

@@ -78,7 +78,6 @@ class SupplierActualizationService:
                 supplier=link.supplier_id,
                 car_model=link.car_model_id,
                 dealership=link.dealer_id,
-                now=now,
             )
 
             new_price = quote.final_price

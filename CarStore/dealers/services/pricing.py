@@ -12,7 +12,7 @@ when the next scheduled promotion within the planning horizon begins.
 """
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -169,7 +169,6 @@ def get_supply_quote(
     supplier: Supplier,
     car_model: CarModel,
     dealership: Dealership,
-    now: datetime | None = None,
 ) -> SupplyQuote:
     """
     A comprehensive calculation of the effective supplier price for a specific model at the dealership.
@@ -180,8 +179,8 @@ def get_supply_quote(
       - loyalty (based on purchase volume from SupplyHistory)
       - discount prospects (future promotions within the planning horizon)
     """
-    if now is None:
-        now = timezone.now()
+
+    now = timezone.now()
     today = now.date()
 
     supplier_car = SupplierCar.objects.filter(

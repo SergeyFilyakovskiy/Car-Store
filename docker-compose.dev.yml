@@ -21,6 +21,7 @@ services:
     networks:
       - internal
       - public
+
   postgres:
     image: postgis/postgis:16-3.4
     restart: unless-stopped
